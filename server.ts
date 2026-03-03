@@ -75,111 +75,53 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Global Logger for debugging
-  app.use((req, res, next) => {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${req.method} ${req.url}`);
-    next();
-  });
-
-  // Health check
-  app.get("/ping", (req, res) => res.send("pong"));
-
-  // API Routes
-  const api = express.Router();
-
-  api.get("/menu", (req, res) => {
-    console.log(">>> API HIT: /api/menu");
+  // 1. API ROUTES (Must be first)
+  app.get("/api/menu", (req, res) => {
+    console.log(">>> REQUEST: /api/menu");
     try {
       const categories = db.prepare("SELECT * FROM categories").all();
       const items = db.prepare("SELECT * FROM items").all();
-      console.log(`>>> API SUCCESS: Sent ${categories.length} cats and ${items.length} items`);
-      res.json({ categories, items });
+      console.log(`>>> SUCCESS: Found ${categories.length} categories`);
+      return res.json({ categories, items });
     } catch (error: any) {
-      console.error(">>> API ERROR /api/menu:", error);
-      res.status(500).json({ error: error.message });
+      console.error(">>> ERROR /api/menu:", error);
+      return res.status(500).json({ error: error.message });
     }
   });
 
-  api.post("/categories", (req, res) => {
-    try {
-      const { name, icon } = req.body;
-      const result = db.prepare("INSERT INTO categories (name, icon) VALUES (?, ?)").run(name, icon);
-      res.json({ id: result.lastInsertRowid });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
+  app.get("/api/test", (req, res) => {
+    return res.json({ status: "ok", message: "API is working" });
   });
 
-  api.delete("/categories/:id", (req, res) => {
-    try {
-      db.prepare("DELETE FROM items WHERE category_id = ?").run(req.params.id);
-      db.prepare("DELETE FROM categories WHERE id = ?").run(req.params.id);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  api.post("/items", (req, res) => {
-    try {
-      const { category_id, name, description, price, image_url } = req.body;
-      const result = db.prepare("INSERT INTO items (category_id, name, description, price, image_url) VALUES (?, ?, ?, ?, ?)").run(category_id, name, description, price, image_url);
-      res.json({ id: result.lastInsertRowid });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  api.delete("/items/:id", (req, res) => {
-    try {
-      db.prepare("DELETE FROM items WHERE id = ?").run(req.params.id);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  api.post("/orders", (req, res) => {
+  app.post("/api/orders", (req, res) => {
     try {
       const { location_id, items, total } = req.body;
       const result = db.prepare("INSERT INTO orders (location_id, items, total) VALUES (?, ?, ?)").run(location_id, JSON.stringify(items), total);
       const order = { id: result.lastInsertRowid, location_id, items, total, status: 'pending', created_at: new Date().toISOString() };
       io.emit("new_order", order);
-      res.json(order);
+      return res.json(order);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   });
 
-  api.get("/orders", (req, res) => {
+  // Admin API Routes
+  app.get("/api/orders", (req, res) => {
     try {
       const orders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all();
-      res.json(orders.map((o: any) => ({ ...o, items: JSON.parse(o.items) })));
+      return res.json(orders.map((o: any) => ({ ...o, items: JSON.parse(o.items) })));
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   });
 
-  api.patch("/orders/:id/status", (req, res) => {
-    try {
-      const { status } = req.body;
-      db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, req.params.id);
-      res.json({ success: true });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.use("/api", api);
-
-  // Catch-all for undefined API routes
+  // Ensure any other /api/* request returns JSON, not HTML
   app.all("/api/*", (req, res) => {
     console.log(`>>> API 404: ${req.method} ${req.url}`);
-    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
+    return res.status(404).json({ error: "API Route Not Found" });
   });
 
-  // Vite middleware for development
+  // 2. VITE / STATIC MIDDLEWARE (Must be after API)
   const isProd = process.env.NODE_ENV === "production";
   console.log(`ENVIRONMENT: ${isProd ? 'PRODUCTION' : 'DEVELOPMENT'}`);
   
