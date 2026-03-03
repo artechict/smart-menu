@@ -8,35 +8,41 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const db = new Database("menu.db");
+console.log("Database connected.");
 
 // Initialize Database
-db.exec(`
-  CREATE TABLE IF NOT EXISTS categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    icon TEXT
-  );
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      icon TEXT
+    );
 
-  CREATE TABLE IF NOT EXISTS items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    category_id INTEGER,
-    name TEXT NOT NULL,
-    description TEXT,
-    price REAL NOT NULL,
-    image_url TEXT,
-    available INTEGER DEFAULT 1,
-    FOREIGN KEY (category_id) REFERENCES categories (id)
-  );
+    CREATE TABLE IF NOT EXISTS items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id INTEGER,
+      name TEXT NOT NULL,
+      description TEXT,
+      price REAL NOT NULL,
+      image_url TEXT,
+      available INTEGER DEFAULT 1,
+      FOREIGN KEY (category_id) REFERENCES categories (id)
+    );
 
-  CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    location_id TEXT NOT NULL, -- Table number or Room number
-    items TEXT NOT NULL, -- JSON string of items
-    total REAL NOT NULL,
-    status TEXT DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-`);
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      location_id TEXT NOT NULL,
+      items TEXT NOT NULL,
+      total REAL NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  console.log("Database tables initialized successfully.");
+} catch (err) {
+  console.error("Database initialization error:", err);
+}
 
 // Seed initial data if empty
 const categoryCount = db.prepare("SELECT count(*) as count FROM categories").get() as { count: number };
@@ -63,9 +69,15 @@ async function startServer() {
 
   // API Routes
   app.get("/api/menu", (req, res) => {
-    const categories = db.prepare("SELECT * FROM categories").all();
-    const items = db.prepare("SELECT * FROM items").all();
-    res.json({ categories, items });
+    try {
+      console.log("Fetching menu data...");
+      const categories = db.prepare("SELECT * FROM categories").all();
+      const items = db.prepare("SELECT * FROM items").all();
+      res.json({ categories, items });
+    } catch (error) {
+      console.error("Error fetching menu:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
   });
 
   app.post("/api/categories", (req, res) => {

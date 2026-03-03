@@ -26,14 +26,28 @@ export default function CustomerMenu() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/menu")
-      .then((res) => res.json())
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    fetch("/api/menu", { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch menu");
+        return res.json();
+      })
       .then((data) => {
         setCategories(data.categories);
         setItems(data.items);
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
         setLoading(false);
+        clearTimeout(timeoutId);
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Could not load menu. Please refresh.");
+        setLoading(false);
       });
+
+    return () => clearTimeout(timeoutId);
   }, []);
 
   const filteredItems = useMemo(() => {
