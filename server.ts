@@ -67,13 +67,14 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API Routes
-  app.get("/api/menu", (req, res) => {
+  // API Routes - MUST be defined before Vite/Static middleware
+  const apiRouter = express.Router();
+
+  apiRouter.get("/menu", (req, res) => {
     try {
       console.log(`[${new Date().toISOString()}] GET /api/menu - Request received`);
       const categories = db.prepare("SELECT * FROM categories").all();
       const items = db.prepare("SELECT * FROM items").all();
-      console.log(`[${new Date().toISOString()}] GET /api/menu - Success: Found ${categories.length} categories and ${items.length} items`);
       res.json({ categories, items });
     } catch (error: any) {
       console.error(`[${new Date().toISOString()}] GET /api/menu - Error:`, error);
@@ -81,47 +82,53 @@ async function startServer() {
     }
   });
 
-  app.post("/api/categories", (req, res) => {
+  apiRouter.post("/categories", (req, res) => {
     const { name, icon } = req.body;
     const result = db.prepare("INSERT INTO categories (name, icon) VALUES (?, ?)").run(name, icon);
     res.json({ id: result.lastInsertRowid });
   });
 
-  app.delete("/api/categories/:id", (req, res) => {
+  apiRouter.delete("/categories/:id", (req, res) => {
     db.prepare("DELETE FROM items WHERE category_id = ?").run(req.params.id);
     db.prepare("DELETE FROM categories WHERE id = ?").run(req.params.id);
     res.json({ success: true });
   });
 
-  app.post("/api/items", (req, res) => {
+  apiRouter.post("/items", (req, res) => {
     const { category_id, name, description, price, image_url } = req.body;
     const result = db.prepare("INSERT INTO items (category_id, name, description, price, image_url) VALUES (?, ?, ?, ?, ?)").run(category_id, name, description, price, image_url);
     res.json({ id: result.lastInsertRowid });
   });
 
-  app.delete("/api/items/:id", (req, res) => {
+  apiRouter.delete("/items/:id", (req, res) => {
     db.prepare("DELETE FROM items WHERE id = ?").run(req.params.id);
     res.json({ success: true });
   });
 
-  app.post("/api/orders", (req, res) => {
+  apiRouter.post("/orders", (req, res) => {
     const { location_id, items, total } = req.body;
     const result = db.prepare("INSERT INTO orders (location_id, items, total) VALUES (?, ?, ?)").run(location_id, JSON.stringify(items), total);
     const order = { id: result.lastInsertRowid, location_id, items, total, status: 'pending', created_at: new Date().toISOString() };
-    
     io.emit("new_order", order);
     res.json(order);
   });
 
-  app.get("/api/orders", (req, res) => {
+  apiRouter.get("/orders", (req, res) => {
     const orders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all();
     res.json(orders.map((o: any) => ({ ...o, items: JSON.parse(o.items) })));
   });
 
-  app.patch("/api/orders/:id/status", (req, res) => {
+  apiRouter.patch("/orders/:id/status", (req, res) => {
     const { status } = req.body;
     db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, req.params.id);
     res.json({ success: true });
+  });
+
+  app.use("/api", apiRouter);
+
+  // Catch-all for undefined API routes to prevent HTML fallback
+  app.use("/api/*", (req, res) => {
+    res.status(404).json({ error: "API route not found" });
   });
 
   // Vite middleware for development
