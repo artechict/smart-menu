@@ -6,9 +6,17 @@ import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
 
+console.log("SERVER.TS STARTING...");
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const db = new Database("menu.db");
-console.log("Database connected.");
+let db: any;
+try {
+  db = new Database("menu.db");
+  console.log("Database connected.");
+} catch (err) {
+  console.error("FATAL: Could not connect to database:", err);
+  process.exit(1);
+}
 
 // Initialize Database
 try {
@@ -67,68 +75,102 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API Routes - MUST be defined before Vite/Static middleware
-  const apiRouter = express.Router();
+  // Global Logger for debugging
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
 
-  apiRouter.get("/menu", (req, res) => {
+  // Health check
+  app.get("/ping", (req, res) => res.send("pong"));
+
+  // API Routes
+  app.get("/api/menu", (req, res) => {
+    console.log(">>> HIT: /api/menu");
     try {
-      console.log(`[${new Date().toISOString()}] GET /api/menu - Request received`);
       const categories = db.prepare("SELECT * FROM categories").all();
       const items = db.prepare("SELECT * FROM items").all();
+      console.log(">>> SUCCESS: /api/menu data sent");
       res.json({ categories, items });
     } catch (error: any) {
-      console.error(`[${new Date().toISOString()}] GET /api/menu - Error:`, error);
-      res.status(500).json({ error: error.message || "Internal Server Error" });
+      console.error(">>> ERROR: /api/menu:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
-  apiRouter.post("/categories", (req, res) => {
-    const { name, icon } = req.body;
-    const result = db.prepare("INSERT INTO categories (name, icon) VALUES (?, ?)").run(name, icon);
-    res.json({ id: result.lastInsertRowid });
+  app.post("/api/categories", (req, res) => {
+    try {
+      const { name, icon } = req.body;
+      const result = db.prepare("INSERT INTO categories (name, icon) VALUES (?, ?)").run(name, icon);
+      res.json({ id: result.lastInsertRowid });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  apiRouter.delete("/categories/:id", (req, res) => {
-    db.prepare("DELETE FROM items WHERE category_id = ?").run(req.params.id);
-    db.prepare("DELETE FROM categories WHERE id = ?").run(req.params.id);
-    res.json({ success: true });
+  app.delete("/api/categories/:id", (req, res) => {
+    try {
+      db.prepare("DELETE FROM items WHERE category_id = ?").run(req.params.id);
+      db.prepare("DELETE FROM categories WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  apiRouter.post("/items", (req, res) => {
-    const { category_id, name, description, price, image_url } = req.body;
-    const result = db.prepare("INSERT INTO items (category_id, name, description, price, image_url) VALUES (?, ?, ?, ?, ?)").run(category_id, name, description, price, image_url);
-    res.json({ id: result.lastInsertRowid });
+  app.post("/api/items", (req, res) => {
+    try {
+      const { category_id, name, description, price, image_url } = req.body;
+      const result = db.prepare("INSERT INTO items (category_id, name, description, price, image_url) VALUES (?, ?, ?, ?, ?)").run(category_id, name, description, price, image_url);
+      res.json({ id: result.lastInsertRowid });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  apiRouter.delete("/items/:id", (req, res) => {
-    db.prepare("DELETE FROM items WHERE id = ?").run(req.params.id);
-    res.json({ success: true });
+  app.delete("/api/items/:id", (req, res) => {
+    try {
+      db.prepare("DELETE FROM items WHERE id = ?").run(req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  apiRouter.post("/orders", (req, res) => {
-    const { location_id, items, total } = req.body;
-    const result = db.prepare("INSERT INTO orders (location_id, items, total) VALUES (?, ?, ?)").run(location_id, JSON.stringify(items), total);
-    const order = { id: result.lastInsertRowid, location_id, items, total, status: 'pending', created_at: new Date().toISOString() };
-    io.emit("new_order", order);
-    res.json(order);
+  app.post("/api/orders", (req, res) => {
+    try {
+      const { location_id, items, total } = req.body;
+      const result = db.prepare("INSERT INTO orders (location_id, items, total) VALUES (?, ?, ?)").run(location_id, JSON.stringify(items), total);
+      const order = { id: result.lastInsertRowid, location_id, items, total, status: 'pending', created_at: new Date().toISOString() };
+      io.emit("new_order", order);
+      res.json(order);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  apiRouter.get("/orders", (req, res) => {
-    const orders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all();
-    res.json(orders.map((o: any) => ({ ...o, items: JSON.parse(o.items) })));
+  app.get("/api/orders", (req, res) => {
+    try {
+      const orders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all();
+      res.json(orders.map((o: any) => ({ ...o, items: JSON.parse(o.items) })));
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  apiRouter.patch("/orders/:id/status", (req, res) => {
-    const { status } = req.body;
-    db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, req.params.id);
-    res.json({ success: true });
+  app.patch("/api/orders/:id/status", (req, res) => {
+    try {
+      const { status } = req.body;
+      db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, req.params.id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
   });
 
-  app.use("/api", apiRouter);
-
-  // Catch-all for undefined API routes to prevent HTML fallback
-  app.use("/api/*", (req, res) => {
-    res.status(404).json({ error: "API route not found" });
+  // Catch-all for undefined API routes
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
   });
 
   // Vite middleware for development

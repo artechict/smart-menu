@@ -31,6 +31,9 @@ export default function CustomerMenu() {
 
     const loadMenu = async () => {
       try {
+        // Small delay to ensure server middleware is fully ready
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         const res = await fetch("/api/menu", { signal: controller.signal });
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
