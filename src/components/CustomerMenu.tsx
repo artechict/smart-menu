@@ -39,7 +39,11 @@ export default function CustomerMenu() {
           const errorData = await res.json().catch(() => ({}));
           throw new Error(errorData.error || `Server responded with ${res.status}`);
         }
-        const data = await res.json();
+        const data = await res.json().catch(async (e) => {
+          const text = await res.text();
+          console.error("JSON Parse Error. Response text:", text);
+          throw new Error(`Invalid JSON response from server. Check console for details.`);
+        });
         setCategories(data.categories);
         setItems(data.items);
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);

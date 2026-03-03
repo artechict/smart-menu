@@ -1,0 +1,14 @@
+{
+  "categories": [
+    { "id": 1, "name": "Appetizers", "icon": "Soup" },
+    { "id": 2, "name": "Main Course", "icon": "Utensils" },
+    { "id": 3, "name": "Desserts", "icon": "IceCream" },
+    { "id": 4, "name": "Drinks", "icon": "Coffee" }
+  ],
+  "items": [
+    { "id": 1, "category_id": 1, "name": "Garlic Bread", "description": "Toasted bread with garlic butter and herbs", "price": 5.99, "image_url": "https://picsum.photos/seed/garlic/400/300" },
+    { "id": 2, "category_id": 2, "name": "Grilled Salmon", "description": "Fresh salmon with asparagus and lemon butter", "price": 24.50, "image_url": "https://picsum.photos/seed/salmon/400/300" },
+    { "id": 3, "category_id": 3, "name": "Chocolate Lava Cake", "description": "Warm chocolate cake with a molten center", "price": 8.99, "image_url": "https://picsum.photos/seed/cake/400/300" }
+  ],
+  "orders": []
+}
