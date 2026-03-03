@@ -27,26 +27,33 @@ export default function CustomerMenu() {
 
   useEffect(() => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    fetch("/api/menu", { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch menu");
-        return res.json();
-      })
-      .then((data) => {
+    const loadMenu = async () => {
+      try {
+        const res = await fetch("/api/menu", { signal: controller.signal });
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || `Server responded with ${res.status}`);
+        }
+        const data = await res.json();
         setCategories(data.categories);
         setItems(data.items);
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
         setLoading(false);
         clearTimeout(timeoutId);
-      })
-      .catch((err) => {
-        console.error(err);
-        toast.error("Could not load menu. Please refresh.");
+      } catch (err: any) {
+        console.error("Fetch error:", err);
+        if (err.name === 'AbortError') {
+          toast.error("Connection timeout. The server might be busy.");
+        } else {
+          toast.error(`Error: ${err.message}`);
+        }
         setLoading(false);
-      });
+      }
+    };
 
+    loadMenu();
     return () => clearTimeout(timeoutId);
   }, []);
 
@@ -97,7 +104,30 @@ export default function CustomerMenu() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-screen">Loading Menu...</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-screen gap-4">
+      <div className="w-8 h-8 border-4 border-stone-900 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-stone-500 font-serif italic">Preparing your menu...</p>
+    </div>
+  );
+
+  if (categories.length === 0) return (
+    <div className="flex flex-col items-center justify-center h-screen p-8 text-center gap-6">
+      <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center text-stone-400">
+        <Utensils size={32} />
+      </div>
+      <div>
+        <h2 className="text-2xl font-serif mb-2">Could not load menu</h2>
+        <p className="text-stone-500 text-sm">We're having trouble connecting to our kitchen. Please try again.</p>
+      </div>
+      <button 
+        onClick={() => window.location.reload()}
+        className="bg-stone-900 text-white px-8 py-3 rounded-2xl font-bold uppercase tracking-widest hover:bg-stone-800 transition-colors"
+      >
+        Retry Connection
+      </button>
+    </div>
+  );
 
   return (
     <div className="max-w-md mx-auto min-h-screen pb-24 relative">

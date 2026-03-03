@@ -70,13 +70,14 @@ async function startServer() {
   // API Routes
   app.get("/api/menu", (req, res) => {
     try {
-      console.log("Fetching menu data...");
+      console.log(`[${new Date().toISOString()}] GET /api/menu - Request received`);
       const categories = db.prepare("SELECT * FROM categories").all();
       const items = db.prepare("SELECT * FROM items").all();
+      console.log(`[${new Date().toISOString()}] GET /api/menu - Success: Found ${categories.length} categories and ${items.length} items`);
       res.json({ categories, items });
-    } catch (error) {
-      console.error("Error fetching menu:", error);
-      res.status(500).json({ error: "Internal Server Error" });
+    } catch (error: any) {
+      console.error(`[${new Date().toISOString()}] GET /api/menu - Error:`, error);
+      res.status(500).json({ error: error.message || "Internal Server Error" });
     }
   });
 
@@ -124,16 +125,21 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  const isProd = process.env.NODE_ENV === "production";
+  
+  if (!isProd) {
+    console.log("Starting in development mode with Vite middleware...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
+    console.log("Starting in production mode...");
+    const distPath = path.join(__dirname, "dist");
+    app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
