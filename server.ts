@@ -77,7 +77,8 @@ async function startServer() {
 
   // Global Logger for debugging
   app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${req.method} ${req.url}`);
     next();
   });
 
@@ -85,20 +86,22 @@ async function startServer() {
   app.get("/ping", (req, res) => res.send("pong"));
 
   // API Routes
-  app.get("/api/menu", (req, res) => {
-    console.log(">>> HIT: /api/menu");
+  const api = express.Router();
+
+  api.get("/menu", (req, res) => {
+    console.log(">>> API HIT: /api/menu");
     try {
       const categories = db.prepare("SELECT * FROM categories").all();
       const items = db.prepare("SELECT * FROM items").all();
-      console.log(">>> SUCCESS: /api/menu data sent");
+      console.log(`>>> API SUCCESS: Sent ${categories.length} cats and ${items.length} items`);
       res.json({ categories, items });
     } catch (error: any) {
-      console.error(">>> ERROR: /api/menu:", error);
+      console.error(">>> API ERROR /api/menu:", error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/categories", (req, res) => {
+  api.post("/categories", (req, res) => {
     try {
       const { name, icon } = req.body;
       const result = db.prepare("INSERT INTO categories (name, icon) VALUES (?, ?)").run(name, icon);
@@ -108,7 +111,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/categories/:id", (req, res) => {
+  api.delete("/categories/:id", (req, res) => {
     try {
       db.prepare("DELETE FROM items WHERE category_id = ?").run(req.params.id);
       db.prepare("DELETE FROM categories WHERE id = ?").run(req.params.id);
@@ -118,7 +121,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/items", (req, res) => {
+  api.post("/items", (req, res) => {
     try {
       const { category_id, name, description, price, image_url } = req.body;
       const result = db.prepare("INSERT INTO items (category_id, name, description, price, image_url) VALUES (?, ?, ?, ?, ?)").run(category_id, name, description, price, image_url);
@@ -128,7 +131,7 @@ async function startServer() {
     }
   });
 
-  app.delete("/api/items/:id", (req, res) => {
+  api.delete("/items/:id", (req, res) => {
     try {
       db.prepare("DELETE FROM items WHERE id = ?").run(req.params.id);
       res.json({ success: true });
@@ -137,7 +140,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/orders", (req, res) => {
+  api.post("/orders", (req, res) => {
     try {
       const { location_id, items, total } = req.body;
       const result = db.prepare("INSERT INTO orders (location_id, items, total) VALUES (?, ?, ?)").run(location_id, JSON.stringify(items), total);
@@ -149,7 +152,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/orders", (req, res) => {
+  api.get("/orders", (req, res) => {
     try {
       const orders = db.prepare("SELECT * FROM orders ORDER BY created_at DESC").all();
       res.json(orders.map((o: any) => ({ ...o, items: JSON.parse(o.items) })));
@@ -158,7 +161,7 @@ async function startServer() {
     }
   });
 
-  app.patch("/api/orders/:id/status", (req, res) => {
+  api.patch("/orders/:id/status", (req, res) => {
     try {
       const { status } = req.body;
       db.prepare("UPDATE orders SET status = ? WHERE id = ?").run(status, req.params.id);
@@ -168,13 +171,17 @@ async function startServer() {
     }
   });
 
+  app.use("/api", api);
+
   // Catch-all for undefined API routes
   app.all("/api/*", (req, res) => {
+    console.log(`>>> API 404: ${req.method} ${req.url}`);
     res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
   });
 
   // Vite middleware for development
   const isProd = process.env.NODE_ENV === "production";
+  console.log(`ENVIRONMENT: ${isProd ? 'PRODUCTION' : 'DEVELOPMENT'}`);
   
   if (!isProd) {
     console.log("Starting in development mode with Vite middleware...");
