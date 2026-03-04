@@ -66,13 +66,13 @@ export default function CustomerMenu() {
   useEffect(() => {
     const loadMenu = async () => {
       try {
-        // Use a very specific path that Vite won't touch
-        const res = await fetch(`/get-menu-now?t=${Date.now()}`);
+        // Standard API path, now handled by Vite Proxy
+        const res = await fetch(`/api/menu?t=${Date.now()}`);
         const text = await res.text();
         
         if (text.includes("<!doctype html>")) {
           console.warn("Server returned HTML. Using fallback data.");
-          return; // Keep using fallback data
+          return;
         }
         
         const data = JSON.parse(text);
@@ -81,7 +81,6 @@ export default function CustomerMenu() {
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
       } catch (err: any) {
         console.error("Menu load error:", err);
-        // Fallback data is already set in state
       } finally {
         setLoading(false);
       }
@@ -118,7 +117,7 @@ export default function CustomerMenu() {
     if (cart.length === 0) return;
     setLoading(true);
     try {
-      const res = await fetch("/save-order-now", {
+      const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

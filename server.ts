@@ -9,7 +9,7 @@ import fs from "fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "db.json");
 
-// --- DATABASE ENGINE ---
+// --- 1. ROBUST DATABASE LOGIC ---
 const initialDb = {
   categories: [
     { id: 1, name: "Appetizers", icon: "Soup" },
@@ -43,63 +43,57 @@ async function startServer() {
   
   app.use(express.json());
 
-  // --- 1. PRIORITY API ROUTES ---
-  // We handle these BEFORE anything else
-  app.post("/save-order-now", (req, res) => {
-    console.log(">>> [SERVER] Saving Order");
+  // --- 2. API ROUTES (Standard & Clean) ---
+  const api = express.Router();
+
+  api.get("/menu", (req, res) => {
+    const db = getDb();
+    res.json({ categories: db.categories, items: db.items });
+  });
+
+  api.post("/orders", (req, res) => {
     const db = getDb();
     const newOrder = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
     db.orders.push(newOrder);
     saveDb(db);
     io.emit("new_order", newOrder);
-    res.setHeader('Content-Type', 'application/json');
-    return res.status(201).json(newOrder);
+    res.status(201).json(newOrder);
   });
 
-  app.get("/get-menu-now", (req, res) => {
-    console.log(">>> [SERVER] Serving Menu");
+  api.post("/admin/categories", (req, res) => {
     const db = getDb();
-    res.setHeader('Content-Type', 'application/json');
-    return res.json({ categories: db.categories, items: db.items });
-  });
-
-  // --- ADMIN ROUTES ---
-  app.post("/admin-api/categories", (req, res) => {
-    const db = getDb();
-    const newCategory = { ...req.body, id: Date.now() };
-    db.categories.push(newCategory);
+    const newCat = { ...req.body, id: Date.now() };
+    db.categories.push(newCat);
     saveDb(db);
-    res.setHeader('Content-Type', 'application/json');
-    res.status(201).json(newCategory);
+    res.status(201).json(newCat);
   });
 
-  app.delete("/admin-api/categories/:id", (req, res) => {
+  api.delete("/admin/categories/:id", (req, res) => {
     const db = getDb();
     db.categories = db.categories.filter((c: any) => c.id !== parseInt(req.params.id));
     db.items = db.items.filter((i: any) => i.category_id !== parseInt(req.params.id));
     saveDb(db);
-    res.setHeader('Content-Type', 'application/json');
     res.json({ success: true });
   });
 
-  app.post("/admin-api/items", (req, res) => {
+  api.post("/admin/items", (req, res) => {
     const db = getDb();
     const newItem = { ...req.body, id: Date.now() };
     db.items.push(newItem);
     saveDb(db);
-    res.setHeader('Content-Type', 'application/json');
     res.status(201).json(newItem);
   });
 
-  app.delete("/admin-api/items/:id", (req, res) => {
+  api.delete("/admin/items/:id", (req, res) => {
     const db = getDb();
     db.items = db.items.filter((i: any) => i.id !== parseInt(req.params.id));
     saveDb(db);
-    res.setHeader('Content-Type', 'application/json');
     res.json({ success: true });
   });
 
-  // --- 2. VITE / STATIC ---
+  app.use("/api", api);
+
+  // --- 3. VITE / STATIC ---
   const distPath = path.join(__dirname, "dist");
   const isProd = process.env.NODE_ENV === "production" && fs.existsSync(distPath);
   
@@ -112,14 +106,13 @@ async function startServer() {
   } else {
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      // Final guard: if it's a data request that reached here, return 404 JSON, not HTML
-      if (req.url.includes('now')) return res.status(404).json({ error: "Not Found" });
+      if (req.url.startsWith('/api')) return res.status(404).json({ error: "Not Found" });
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
   httpServer.listen(3000, "0.0.0.0", () => {
-    console.log("ULTRA-STABLE SERVER READY");
+    console.log("SERVER READY ON PORT 3000 - API AT /api");
   });
 }
 
