@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { ShoppingCart, Utensils, Coffee, IceCream, Soup, ChevronRight, X, Plus, Minus } from "lucide-react";
+import { ShoppingCart, Utensils, Coffee, IceCream, Soup, ChevronRight, X, Plus, Minus, Settings } from "lucide-react";
 import { Category, MenuItem, OrderItem } from "../types";
 import toast from "react-hot-toast";
 
@@ -174,8 +174,13 @@ export default function CustomerMenu() {
             <h1 className="text-4xl font-serif font-light tracking-tight">The Grand - Live</h1>
             <p className="text-sm text-stone-500 uppercase tracking-widest mt-1">Restaurant & Hotel</p>
           </div>
-          <div className="bg-stone-200/50 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">
-            {locationId}
+          <div className="flex flex-col items-end gap-2">
+            <div className="bg-stone-200/50 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">
+              {locationId}
+            </div>
+            <Link to="/admin" className="p-2 bg-white border border-stone-200 rounded-full text-stone-400 hover:text-stone-900 transition-colors shadow-sm">
+              <Settings size={14} />
+            </Link>
           </div>
         </div>
       </header>
