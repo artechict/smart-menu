@@ -12,68 +12,40 @@ const ICON_MAP: Record<string, any> = {
   Coffee,
 };
 
+// STATIC MENU DATA
+const STATIC_CATEGORIES: Category[] = [
+  { id: 1, name: "Appetizers", icon: "Soup" },
+  { id: 2, name: "Main Course", icon: "Utensils" },
+  { id: 3, name: "Desserts", icon: "IceCream" },
+  { id: 4, name: "Drinks", icon: "Coffee" }
+];
+
+const STATIC_ITEMS: MenuItem[] = [
+  { id: 1, category_id: 1, name: "Garlic Bread", description: "Toasted bread with garlic butter and herbs", price: 5.99, image_url: "https://picsum.photos/seed/garlic/400/300" },
+  { id: 2, category_id: 2, name: "Bruschetta", description: "Grilled bread topped with tomatoes, garlic and olive oil", price: 7.50, image_url: "https://picsum.photos/seed/tomato/400/300" },
+  { id: 3, category_id: 2, name: "Grilled Salmon", description: "Fresh salmon with asparagus and lemon butter", price: 24.50, image_url: "https://picsum.photos/seed/salmon/400/300" },
+  { id: 4, category_id: 2, name: "Beef Tenderloin", description: "Premium beef with roasted potatoes and red wine sauce", price: 32.00, image_url: "https://picsum.photos/seed/beef/400/300" },
+  { id: 5, category_id: 3, name: "Chocolate Lava Cake", description: "Warm chocolate cake with a molten center", price: 8.99, image_url: "https://picsum.photos/seed/cake/400/300" },
+  { id: 6, category_id: 3, name: "Tiramisu", description: "Classic Italian dessert with coffee and mascarpone", price: 9.50, image_url: "https://picsum.photos/seed/coffee/400/300" },
+  { id: 7, category_id: 4, name: "Fresh Lemonade", description: "Homemade lemonade with mint", price: 4.50, image_url: "https://picsum.photos/seed/lemon/400/300" },
+  { id: 8, category_id: 4, name: "Iced Latte", description: "Double shot espresso with cold milk", price: 5.50, image_url: "https://picsum.photos/seed/latte/400/300" }
+];
+
 export default function CustomerMenu() {
   const [searchParams] = useSearchParams();
   const tableId = searchParams.get("table");
   const roomId = searchParams.get("room");
   const locationId = tableId ? `Table ${tableId}` : roomId ? `Room ${roomId}` : "Guest";
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [items, setItems] = useState<MenuItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState<number | null>(null);
+  const [categories] = useState<Category[]>(STATIC_CATEGORIES);
+  const [items] = useState<MenuItem[]>(STATIC_ITEMS);
+  const [activeCategory, setActiveCategory] = useState<number | null>(STATIC_CATEGORIES[0].id);
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-    const loadMenu = async () => {
-      try {
-        // Small delay to ensure server middleware is fully ready
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Use new unique path to avoid Vite interception
-        const res = await fetch(`${window.location.origin}/fetch-menu-data?t=${Date.now()}`, { signal: controller.signal });
-        
-        // Clone the response so we can read it twice if needed
-        const resClone = res.clone();
-        
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.error || `Server responded with ${res.status}`);
-        }
-
-        let data;
-        try {
-          data = await res.json();
-        } catch (e) {
-          const text = await resClone.text();
-          console.error("JSON Parse Error. Response content:", text);
-          throw new Error(`Server returned HTML instead of JSON. This usually means the API route was not found.`);
-        }
-
-        setCategories(data.categories);
-        setItems(data.items);
-        if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
-        setLoading(false);
-        clearTimeout(timeoutId);
-      } catch (err: any) {
-        console.error("Fetch error:", err);
-        if (err.name === 'AbortError') {
-          toast.error("Connection timeout. The server might be busy.");
-        } else {
-          toast.error(`Error: ${err.message}`);
-        }
-        setLoading(false);
-      }
-    };
-
-    loadMenu();
-    return () => clearTimeout(timeoutId);
-  }, []);
-
+  // No more useEffect for fetching menu data as it's static now
+  
   const filteredItems = useMemo(() => {
     return activeCategory ? items.filter((i) => i.category_id === activeCategory) : items;
   }, [items, activeCategory]);
@@ -101,23 +73,33 @@ export default function CustomerMenu() {
 
   const submitOrder = async () => {
     if (cart.length === 0) return;
+    setLoading(true);
     try {
-      const res = await fetch("/submit-order-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location_id: locationId,
-          items: cart,
-          total: cartTotal,
-        }),
-      });
-      if (res.ok) {
-        toast.success("Order placed successfully!");
-        setCart([]);
-        setIsCartOpen(false);
-      }
+      // Create order object
+      const newOrder = {
+        id: Date.now(),
+        location_id: locationId,
+        items: cart,
+        total: cartTotal,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      };
+
+      // Save to LocalStorage
+      const existingOrders = JSON.parse(localStorage.getItem('hotel_orders') || '[]');
+      existingOrders.push(newOrder);
+      localStorage.setItem('hotel_orders', JSON.stringify(existingOrders));
+
+      // Simulate a small delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      toast.success("Order placed successfully!");
+      setCart([]);
+      setIsCartOpen(false);
     } catch (error) {
       toast.error("Failed to place order");
+    } finally {
+      setLoading(false);
     }
   };
 
