@@ -34,8 +34,8 @@ export default function CustomerMenu() {
         // Small delay to ensure server middleware is fully ready
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Use cache buster to bypass any proxy/browser caching
-        const res = await fetch(`${window.location.origin}/api/menu?t=${Date.now()}`, { signal: controller.signal });
+        // Use new unique path to avoid Vite interception
+        const res = await fetch(`${window.location.origin}/fetch-menu-data?t=${Date.now()}`, { signal: controller.signal });
         
         // Clone the response so we can read it twice if needed
         const resClone = res.clone();
@@ -102,7 +102,7 @@ export default function CustomerMenu() {
   const submitOrder = async () => {
     if (cart.length === 0) return;
     try {
-      const res = await fetch("/api/orders", {
+      const res = await fetch("/submit-order-data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
