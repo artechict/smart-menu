@@ -16,9 +16,7 @@ export default defineConfig(({mode}) => {
       },
     },
     server: {
-      proxy: {
-        '/api': 'http://localhost:3000',
-      },
+      // In middleware mode, the proxy is handled by the Express app
       hmr: process.env.DISABLE_HMR !== 'true',
     },
   };

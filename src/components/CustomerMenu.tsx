@@ -34,16 +34,25 @@ export default function CustomerMenu() {
         // Small delay to ensure server middleware is fully ready
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const res = await fetch("/api/menu", { signal: controller.signal });
+        const res = await fetch(`${window.location.origin}/api/menu`, { signal: controller.signal });
+        
+        // Clone the response so we can read it twice if needed
+        const resClone = res.clone();
+        
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}));
           throw new Error(errorData.error || `Server responded with ${res.status}`);
         }
-        const data = await res.json().catch(async (e) => {
-          const text = await res.text();
-          console.error("JSON Parse Error. Response text:", text);
-          throw new Error(`Invalid JSON response from server. Check console for details.`);
-        });
+
+        let data;
+        try {
+          data = await res.json();
+        } catch (e) {
+          const text = await resClone.text();
+          console.error("JSON Parse Error. Response content:", text);
+          throw new Error(`Server returned HTML instead of JSON. This usually means the API route was not found.`);
+        }
+
         setCategories(data.categories);
         setItems(data.items);
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
