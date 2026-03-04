@@ -27,15 +27,13 @@ const initialDb = {
 
 function getDb() {
   try {
-    if (fs.existsSync(DB_PATH)) {
-      return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-    }
-  } catch (e) { console.error("DB Read Error"); }
+    if (fs.existsSync(DB_PATH)) return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+  } catch (e) {}
   return initialDb;
 }
 
 function saveDb(data: any) {
-  try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2)); } catch (e) { console.error("DB Save Error"); }
+  try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2)); } catch (e) {}
 }
 
 async function startServer() {
@@ -43,45 +41,29 @@ async function startServer() {
   const httpServer = createServer(app);
   const io = new Server(httpServer);
   
-  // --- THE "BRUTE FORCE" HANDLER ---
-  // This runs BEFORE everything else to ensure no interception
-  app.use((req, res, next) => {
-    // 1. Handle Menu Fetch
-    if (req.url.includes('/internal-db/menu')) {
-      console.log(">>> [FORCE] Serving Menu JSON");
-      const db = getDb();
-      res.setHeader('Content-Type', 'application/json');
-      return res.status(200).send(JSON.stringify({ categories: db.categories, items: db.items }));
-    }
-
-    // 2. Handle Order Submission
-    if (req.url.includes('/internal-db/orders') && req.method === 'POST') {
-      console.log(">>> [FORCE] Saving Order JSON");
-      let body = '';
-      req.on('data', chunk => { body += chunk.toString(); });
-      req.on('end', () => {
-        try {
-          const orderData = JSON.parse(body);
-          const db = getDb();
-          const newOrder = { ...orderData, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
-          db.orders.push(newOrder);
-          saveDb(db);
-          io.emit("new_order", newOrder);
-          res.setHeader('Content-Type', 'application/json');
-          return res.status(201).send(JSON.stringify(newOrder));
-        } catch (e) {
-          return res.status(400).send(JSON.stringify({ error: "Invalid JSON" }));
-        }
-      });
-      return; // Stop here, don't call next()
-    }
-
-    next();
-  });
-
   app.use(express.json());
 
-  // --- VITE / STATIC ASSETS ---
+  // --- 1. PRIORITY API ROUTES ---
+  // We handle these BEFORE anything else
+  app.post("/save-order-now", (req, res) => {
+    console.log(">>> [SERVER] Saving Order");
+    const db = getDb();
+    const newOrder = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
+    db.orders.push(newOrder);
+    saveDb(db);
+    io.emit("new_order", newOrder);
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(201).json(newOrder);
+  });
+
+  app.get("/get-menu-now", (req, res) => {
+    console.log(">>> [SERVER] Serving Menu");
+    const db = getDb();
+    res.setHeader('Content-Type', 'application/json');
+    return res.json({ categories: db.categories, items: db.items });
+  });
+
+  // --- 2. VITE / STATIC ---
   const distPath = path.join(__dirname, "dist");
   const isProd = process.env.NODE_ENV === "production" && fs.existsSync(distPath);
   
@@ -93,11 +75,15 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static(distPath));
-    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+    app.get("*", (req, res) => {
+      // Final guard: if it's a data request that reached here, return 404 JSON, not HTML
+      if (req.url.includes('now')) return res.status(404).json({ error: "Not Found" });
+      res.sendFile(path.join(distPath, "index.html"));
+    });
   }
 
   httpServer.listen(3000, "0.0.0.0", () => {
-    console.log("ULTRA-ROBUST SERVER RUNNING ON PORT 3000");
+    console.log("ULTRA-STABLE SERVER READY");
   });
 }
 

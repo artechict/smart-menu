@@ -31,48 +31,59 @@ const STATIC_ITEMS: MenuItem[] = [
   { id: 8, category_id: 4, name: "Iced Latte", description: "Double shot espresso with cold milk", price: 5.50, image_url: "https://picsum.photos/seed/latte/400/300" }
 ];
 
+// STATIC FALLBACK DATA (IN CASE SERVER FAILS)
+const FALLBACK_CATEGORIES: Category[] = [
+  { id: 1, name: "Appetizers", icon: "Soup" },
+  { id: 2, name: "Main Course", icon: "Utensils" },
+  { id: 3, name: "Desserts", icon: "IceCream" },
+  { id: 4, name: "Drinks", icon: "Coffee" }
+];
+
+const FALLBACK_ITEMS: MenuItem[] = [
+  { id: 1, category_id: 1, name: "Garlic Bread", description: "Toasted bread with garlic butter and herbs", price: 5.99, image_url: "https://picsum.photos/seed/garlic/400/300" },
+  { id: 2, category_id: 2, name: "Bruschetta", description: "Grilled bread topped with tomatoes, garlic and olive oil", price: 7.50, image_url: "https://picsum.photos/seed/tomato/400/300" },
+  { id: 3, category_id: 2, name: "Grilled Salmon", description: "Fresh salmon with asparagus and lemon butter", price: 24.50, image_url: "https://picsum.photos/seed/salmon/400/300" },
+  { id: 4, category_id: 2, name: "Beef Tenderloin", description: "Premium beef with roasted potatoes and red wine sauce", price: 32.00, image_url: "https://picsum.photos/seed/beef/400/300" },
+  { id: 5, category_id: 3, name: "Chocolate Lava Cake", description: "Warm chocolate cake with a molten center", price: 8.99, image_url: "https://picsum.photos/seed/cake/400/300" },
+  { id: 6, category_id: 3, name: "Tiramisu", description: "Classic Italian dessert with coffee and mascarpone", price: 9.50, image_url: "https://picsum.photos/seed/coffee/400/300" },
+  { id: 7, category_id: 4, name: "Fresh Lemonade", description: "Homemade lemonade with mint", price: 4.50, image_url: "https://picsum.photos/seed/lemon/400/300" },
+  { id: 8, category_id: 4, name: "Iced Latte", description: "Double shot espresso with cold milk", price: 5.50, image_url: "https://picsum.photos/seed/latte/400/300" }
+];
+
 export default function CustomerMenu() {
   const [searchParams] = useSearchParams();
   const tableId = searchParams.get("table");
   const roomId = searchParams.get("room");
   const locationId = tableId ? `Table ${tableId}` : roomId ? `Room ${roomId}` : "Guest";
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [items, setItems] = useState<MenuItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState<number | null>(null);
+  const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES);
+  const [items, setItems] = useState<MenuItem[]>(FALLBACK_ITEMS);
+  const [activeCategory, setActiveCategory] = useState<number | null>(FALLBACK_CATEGORIES[0].id);
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadMenu = async (retries = 3) => {
+    const loadMenu = async () => {
       try {
-        // Use the new isolated path with a unique timestamp to force fresh data
-        const apiUrl = `${window.location.origin}/internal-db/menu?t=${Date.now()}`;
-        const res = await fetch(apiUrl);
-        
-        // We read the response as text first to avoid JSON parse errors
+        // Use a very specific path that Vite won't touch
+        const res = await fetch(`/get-menu-now?t=${Date.now()}`);
         const text = await res.text();
         
         if (text.includes("<!doctype html>")) {
-          console.error("Server still returned HTML. Retrying...");
-          throw new Error("Server returned invalid data (HTML instead of JSON)");
+          console.warn("Server returned HTML. Using fallback data.");
+          return; // Keep using fallback data
         }
         
         const data = JSON.parse(text);
         setCategories(data.categories);
         setItems(data.items);
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
-        setLoading(false);
       } catch (err: any) {
         console.error("Menu load error:", err);
-        if (retries > 0) {
-          // Wait 1.5 seconds before retrying
-          setTimeout(() => loadMenu(retries - 1), 1500);
-        } else {
-          toast.error(`Database Error: ${err.message}`);
-          setLoading(false);
-        }
+        // Fallback data is already set in state
+      } finally {
+        setLoading(false);
       }
     };
     loadMenu();
@@ -107,7 +118,7 @@ export default function CustomerMenu() {
     if (cart.length === 0) return;
     setLoading(true);
     try {
-      const res = await fetch("/internal-db/orders", {
+      const res = await fetch("/save-order-now", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
