@@ -47,18 +47,19 @@ export default function CustomerMenu() {
   useEffect(() => {
     const loadMenu = async (retries = 3) => {
       try {
-        // Use the new isolated path
+        // Use the new isolated path with a unique timestamp to force fresh data
         const apiUrl = `${window.location.origin}/internal-db/menu?t=${Date.now()}`;
         const res = await fetch(apiUrl);
         
-        const contentType = res.headers.get("content-type");
-        if (!res.ok || !contentType || !contentType.includes("application/json")) {
-          const text = await res.text();
-          console.error("Invalid response from server:", text.substring(0, 100));
+        // We read the response as text first to avoid JSON parse errors
+        const text = await res.text();
+        
+        if (text.includes("<!doctype html>")) {
+          console.error("Server still returned HTML. Retrying...");
           throw new Error("Server returned invalid data (HTML instead of JSON)");
         }
         
-        const data = await res.json();
+        const data = JSON.parse(text);
         setCategories(data.categories);
         setItems(data.items);
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
@@ -66,7 +67,8 @@ export default function CustomerMenu() {
       } catch (err: any) {
         console.error("Menu load error:", err);
         if (retries > 0) {
-          setTimeout(() => loadMenu(retries - 1), 1000);
+          // Wait 1.5 seconds before retrying
+          setTimeout(() => loadMenu(retries - 1), 1500);
         } else {
           toast.error(`Database Error: ${err.message}`);
           setLoading(false);

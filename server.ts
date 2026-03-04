@@ -9,7 +9,7 @@ import fs from "fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "db.json");
 
-// --- 1. ROBUST DATABASE LOGIC ---
+// --- DATABASE ENGINE ---
 const initialDb = {
   categories: [
     { id: 1, name: "Appetizers", icon: "Soup" },
@@ -30,74 +30,74 @@ function getDb() {
     if (fs.existsSync(DB_PATH)) {
       return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
     }
-  } catch (e) { console.error("DB Read Error:", e); }
+  } catch (e) { console.error("DB Read Error"); }
   return initialDb;
 }
 
 function saveDb(data: any) {
-  try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2)); } catch (e) { console.error("DB Save Error:", e); }
+  try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2)); } catch (e) { console.error("DB Save Error"); }
 }
 
-// --- 2. SERVER STARTUP ---
 async function startServer() {
   const app = express();
   const httpServer = createServer(app);
   const io = new Server(httpServer);
   
-  app.use(express.json());
-
-  // --- 3. LOGGING MIDDLEWARE ---
+  // --- THE "BRUTE FORCE" HANDLER ---
+  // This runs BEFORE everything else to ensure no interception
   app.use((req, res, next) => {
-    console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+    // 1. Handle Menu Fetch
+    if (req.url.includes('/internal-db/menu')) {
+      console.log(">>> [FORCE] Serving Menu JSON");
+      const db = getDb();
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(200).send(JSON.stringify({ categories: db.categories, items: db.items }));
+    }
+
+    // 2. Handle Order Submission
+    if (req.url.includes('/internal-db/orders') && req.method === 'POST') {
+      console.log(">>> [FORCE] Saving Order JSON");
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const orderData = JSON.parse(body);
+          const db = getDb();
+          const newOrder = { ...orderData, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
+          db.orders.push(newOrder);
+          saveDb(db);
+          io.emit("new_order", newOrder);
+          res.setHeader('Content-Type', 'application/json');
+          return res.status(201).send(JSON.stringify(newOrder));
+        } catch (e) {
+          return res.status(400).send(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      });
+      return; // Stop here, don't call next()
+    }
+
     next();
   });
 
-  // --- 4. ISOLATED DATABASE ROUTES ---
-  // We use /internal-db instead of /api to avoid any Vite/Proxy interference
-  const dbRouter = express.Router();
+  app.use(express.json());
 
-  dbRouter.get("/menu", (req, res) => {
-    console.log(">>> Serving Menu Data");
-    const db = getDb();
-    res.json({ categories: db.categories, items: db.items });
-  });
-
-  dbRouter.post("/orders", (req, res) => {
-    console.log(">>> Saving New Order");
-    const db = getDb();
-    const newOrder = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
-    db.orders.push(newOrder);
-    saveDb(db);
-    io.emit("new_order", newOrder);
-    res.status(201).json(newOrder);
-  });
-
-  app.use("/internal-db", dbRouter);
-
-  // --- 5. VITE / STATIC ASSETS ---
-  const isProd = process.env.NODE_ENV === "production";
+  // --- VITE / STATIC ASSETS ---
+  const distPath = path.join(__dirname, "dist");
+  const isProd = process.env.NODE_ENV === "production" && fs.existsSync(distPath);
   
   if (!isProd) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
-    // Ensure API routes are NOT handled by Vite
-    app.use((req, res, next) => {
-      if (req.url.startsWith('/internal-db')) return next();
-      vite.middlewares(req, res, next);
-    });
+    app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      if (req.url.startsWith('/internal-db')) return res.status(404).json({ error: "Not Found" });
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
   httpServer.listen(3000, "0.0.0.0", () => {
-    console.log("SERVER READY ON PORT 3000 - DB PATH: /internal-db");
+    console.log("ULTRA-ROBUST SERVER RUNNING ON PORT 3000");
   });
 }
 
