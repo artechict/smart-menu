@@ -48,7 +48,7 @@ export default function AdminDashboard() {
   const addCategory = async () => {
     if (!newCatName) return;
     try {
-      const res = await fetch("/admin/categories", {
+      const res = await fetch("/admin-api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newCatName, icon: newCatIcon })
@@ -67,7 +67,7 @@ export default function AdminDashboard() {
   const deleteCategory = async (id: number) => {
     if (!confirm("Are you sure? This will delete all items in this category.")) return;
     try {
-      const res = await fetch(`/admin/categories/${id}`, { method: "DELETE" });
+      const res = await fetch(`/admin-api/categories/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Category deleted");
         fetchMenu();
@@ -80,7 +80,7 @@ export default function AdminDashboard() {
   const addItem = async () => {
     if (!newItem.name || !newItem.price) return;
     try {
-      const res = await fetch("/admin/items", {
+      const res = await fetch("/admin-api/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newItem)
@@ -98,7 +98,7 @@ export default function AdminDashboard() {
 
   const deleteItem = async (id: number) => {
     try {
-      const res = await fetch(`/admin/items/${id}`, { method: "DELETE" });
+      const res = await fetch(`/admin-api/items/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Item deleted");
         fetchMenu();

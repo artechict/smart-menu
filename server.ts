@@ -64,34 +64,38 @@ async function startServer() {
   });
 
   // --- ADMIN ROUTES ---
-  app.post("/admin/categories", (req, res) => {
+  app.post("/admin-api/categories", (req, res) => {
     const db = getDb();
     const newCategory = { ...req.body, id: Date.now() };
     db.categories.push(newCategory);
     saveDb(db);
+    res.setHeader('Content-Type', 'application/json');
     res.status(201).json(newCategory);
   });
 
-  app.delete("/admin/categories/:id", (req, res) => {
+  app.delete("/admin-api/categories/:id", (req, res) => {
     const db = getDb();
     db.categories = db.categories.filter((c: any) => c.id !== parseInt(req.params.id));
     db.items = db.items.filter((i: any) => i.category_id !== parseInt(req.params.id));
     saveDb(db);
+    res.setHeader('Content-Type', 'application/json');
     res.json({ success: true });
   });
 
-  app.post("/admin/items", (req, res) => {
+  app.post("/admin-api/items", (req, res) => {
     const db = getDb();
     const newItem = { ...req.body, id: Date.now() };
     db.items.push(newItem);
     saveDb(db);
+    res.setHeader('Content-Type', 'application/json');
     res.status(201).json(newItem);
   });
 
-  app.delete("/admin/items/:id", (req, res) => {
+  app.delete("/admin-api/items/:id", (req, res) => {
     const db = getDb();
     db.items = db.items.filter((i: any) => i.id !== parseInt(req.params.id));
     saveDb(db);
+    res.setHeader('Content-Type', 'application/json');
     res.json({ success: true });
   });
 
