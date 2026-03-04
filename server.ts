@@ -9,8 +9,8 @@ import fs from "fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "db.json");
 
-// 1. DATA
-let db = {
+// --- DATABASE LOGIC (Simple & Internal) ---
+const initialDb = {
   categories: [
     { id: 1, name: "Appetizers", icon: "Soup" },
     { id: 2, name: "Main Course", icon: "Utensils" },
@@ -25,45 +25,62 @@ let db = {
   orders: []
 };
 
-if (fs.existsSync(DB_PATH)) {
-  try { db = JSON.parse(fs.readFileSync(DB_PATH, "utf-8")); } catch (e) {}
+function getDb() {
+  if (!fs.existsSync(DB_PATH)) {
+    fs.writeFileSync(DB_PATH, JSON.stringify(initialDb, null, 2));
+    return initialDb;
+  }
+  try {
+    return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+  } catch (e) {
+    return initialDb;
+  }
 }
 
-async function start() {
+function saveDb(data: any) {
+  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+}
+
+// --- SERVER LOGIC ---
+async function startServer() {
   const app = express();
   const httpServer = createServer(app);
   const io = new Server(httpServer);
   
   app.use(express.json());
 
-  // 2. LOG ALL REQUESTS
-  app.use((req, res, next) => {
-    console.log(`[SERVER] ${req.method} ${req.url}`);
-    next();
+  // IMPORTANT: API routes must come BEFORE Vite middleware
+  const api = express.Router();
+
+  api.get("/menu", (req, res) => {
+    const db = getDb();
+    res.json({ categories: db.categories, items: db.items });
   });
 
-  // 3. NEW UNIQUE API PATHS (TO AVOID VITE INTERCEPTION)
-  app.get("/fetch-menu-data", (req, res) => {
-    console.log(">>> HANDLING MENU DATA REQUEST");
-    res.setHeader('Content-Type', 'application/json');
-    return res.status(200).json({
-      categories: db.categories,
-      items: db.items
-    });
+  api.get("/orders", (req, res) => {
+    const db = getDb();
+    res.json(db.orders);
   });
 
-  app.post("/submit-order-data", (req, res) => {
-    const order = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
-    db.orders.push(order);
-    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
-    io.emit("new_order", order);
-    return res.json(order);
+  api.post("/orders", (req, res) => {
+    const db = getDb();
+    const newOrder = { 
+      ...req.body, 
+      id: Date.now(), 
+      status: 'pending', 
+      created_at: new Date().toISOString() 
+    };
+    db.orders.push(newOrder);
+    saveDb(db);
+    io.emit("new_order", newOrder);
+    res.status(201).json(newOrder);
   });
 
-  // 4. VITE MIDDLEWARE
-  const distPath = path.join(__dirname, "dist");
-  const isProd = process.env.NODE_ENV === "production" && fs.existsSync(distPath);
-  
+  // Mount API
+  app.use("/api", api);
+
+  // Vite Integration
+  const isProd = process.env.NODE_ENV === "production";
   if (!isProd) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -71,13 +88,14 @@ async function start() {
     });
     app.use(vite.middlewares);
   } else {
+    const distPath = path.join(__dirname, "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
   }
 
   httpServer.listen(3000, "0.0.0.0", () => {
-    console.log("SERVER STARTED ON PORT 3000 - API AT /fetch-menu-data");
+    console.log("Server is running on http://0.0.0.0:3000");
   });
 }
 
-start();
+startServer();

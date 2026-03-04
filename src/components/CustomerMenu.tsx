@@ -37,15 +37,32 @@ export default function CustomerMenu() {
   const roomId = searchParams.get("room");
   const locationId = tableId ? `Table ${tableId}` : roomId ? `Room ${roomId}` : "Guest";
 
-  const [categories] = useState<Category[]>(STATIC_CATEGORIES);
-  const [items] = useState<MenuItem[]>(STATIC_ITEMS);
-  const [activeCategory, setActiveCategory] = useState<number | null>(STATIC_CATEGORIES[0].id);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [activeCategory, setActiveCategory] = useState<number | null>(null);
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // No more useEffect for fetching menu data as it's static now
-  
+  useEffect(() => {
+    const loadMenu = async () => {
+      try {
+        const res = await fetch("/api/menu");
+        if (!res.ok) throw new Error("Failed to fetch menu");
+        const data = await res.json();
+        setCategories(data.categories);
+        setItems(data.items);
+        if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
+      } catch (err) {
+        console.error("Menu load error:", err);
+        toast.error("Could not connect to database");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadMenu();
+  }, []);
+
   const filteredItems = useMemo(() => {
     return activeCategory ? items.filter((i) => i.category_id === activeCategory) : items;
   }, [items, activeCategory]);
@@ -75,29 +92,23 @@ export default function CustomerMenu() {
     if (cart.length === 0) return;
     setLoading(true);
     try {
-      // Create order object
-      const newOrder = {
-        id: Date.now(),
-        location_id: locationId,
-        items: cart,
-        total: cartTotal,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      };
-
-      // Save to LocalStorage
-      const existingOrders = JSON.parse(localStorage.getItem('hotel_orders') || '[]');
-      existingOrders.push(newOrder);
-      localStorage.setItem('hotel_orders', JSON.stringify(existingOrders));
-
-      // Simulate a small delay for better UX
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      toast.success("Order placed successfully!");
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location_id: locationId,
+          items: cart,
+          total: cartTotal,
+        }),
+      });
+      
+      if (!res.ok) throw new Error("Order failed");
+      
+      toast.success("Order saved to database!");
       setCart([]);
       setIsCartOpen(false);
     } catch (error) {
-      toast.error("Failed to place order");
+      toast.error("Database connection error");
     } finally {
       setLoading(false);
     }
