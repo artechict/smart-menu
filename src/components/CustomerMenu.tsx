@@ -45,19 +45,34 @@ export default function CustomerMenu() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadMenu = async () => {
+    const loadMenu = async (retries = 3) => {
       try {
-        const res = await fetch("/api/menu");
-        if (!res.ok) throw new Error("Failed to fetch menu");
+        // Try absolute URL first for better reliability in some environments
+        const apiUrl = `${window.location.origin}/api/menu?t=${Date.now()}`;
+        const res = await fetch(apiUrl);
+        
+        if (!res.ok) {
+          const text = await res.text();
+          if (text.includes("<!doctype html>")) {
+            throw new Error("Server returned HTML instead of JSON (Routing Error)");
+          }
+          throw new Error(`Server error: ${res.status}`);
+        }
+        
         const data = await res.json();
         setCategories(data.categories);
         setItems(data.items);
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
-      } catch (err) {
-        console.error("Menu load error:", err);
-        toast.error("Could not connect to database");
-      } finally {
         setLoading(false);
+      } catch (err: any) {
+        console.error("Menu load error:", err);
+        if (retries > 0) {
+          console.log(`Retrying... (${retries} attempts left)`);
+          setTimeout(() => loadMenu(retries - 1), 1000);
+        } else {
+          toast.error(`Database Error: ${err.message}`);
+          setLoading(false);
+        }
       }
     };
     loadMenu();

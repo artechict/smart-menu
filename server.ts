@@ -9,7 +9,7 @@ import fs from "fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "db.json");
 
-// --- DATABASE LOGIC (Simple & Internal) ---
+// --- 1. ROBUST DATABASE LOGIC ---
 const initialDb = {
   categories: [
     { id: 1, name: "Appetizers", icon: "Soup" },
@@ -26,22 +26,25 @@ const initialDb = {
 };
 
 function getDb() {
-  if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify(initialDb, null, 2));
-    return initialDb;
-  }
   try {
-    return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    if (fs.existsSync(DB_PATH)) {
+      return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    }
   } catch (e) {
-    return initialDb;
+    console.error("DB Read Error:", e);
   }
+  return initialDb;
 }
 
 function saveDb(data: any) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error("DB Save Error:", e);
+  }
 }
 
-// --- SERVER LOGIC ---
+// --- 2. SERVER STARTUP ---
 async function startServer() {
   const app = express();
   const httpServer = createServer(app);
@@ -49,20 +52,20 @@ async function startServer() {
   
   app.use(express.json());
 
-  // IMPORTANT: API routes must come BEFORE Vite middleware
-  const api = express.Router();
-
-  api.get("/menu", (req, res) => {
+  // --- 3. DIRECT API ROUTES (NO ROUTER FOR MAXIMUM COMPATIBILITY) ---
+  app.get("/api/menu", (req, res) => {
+    console.log(">>> API HIT: /api/menu");
     const db = getDb();
-    res.json({ categories: db.categories, items: db.items });
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json({ categories: db.categories, items: db.items });
   });
 
-  api.get("/orders", (req, res) => {
-    const db = getDb();
-    res.json(db.orders);
+  app.get("/api/ping", (req, res) => {
+    res.json({ status: "online", timestamp: new Date().toISOString() });
   });
 
-  api.post("/orders", (req, res) => {
+  app.post("/api/orders", (req, res) => {
+    console.log(">>> API HIT: POST /api/orders");
     const db = getDb();
     const newOrder = { 
       ...req.body, 
@@ -76,10 +79,7 @@ async function startServer() {
     res.status(201).json(newOrder);
   });
 
-  // Mount API
-  app.use("/api", api);
-
-  // Vite Integration
+  // --- 4. VITE INTEGRATION ---
   const isProd = process.env.NODE_ENV === "production";
   if (!isProd) {
     const vite = await createViteServer({
@@ -90,11 +90,15 @@ async function startServer() {
   } else {
     const distPath = path.join(__dirname, "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+    app.get("*", (req, res) => {
+      // Prevent HTML fallback for API routes
+      if (req.url.startsWith('/api/')) return res.status(404).json({ error: "API not found" });
+      res.sendFile(path.join(distPath, "index.html"));
+    });
   }
 
   httpServer.listen(3000, "0.0.0.0", () => {
-    console.log("Server is running on http://0.0.0.0:3000");
+    console.log("SERVER READY ON PORT 3000");
   });
 }
 
