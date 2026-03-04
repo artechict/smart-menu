@@ -6,13 +6,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 
-console.log("SERVER.TS STARTING (ROBUST MODE)...");
-console.log("NODE_ENV:", process.env.NODE_ENV);
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "db.json");
 
-// Simple In-Memory DB with File Persistence
+// 1. DATA LAYER (IN-MEMORY FOR SPEED)
 let db = {
   categories: [
     { id: 1, name: "Appetizers", icon: "Soup" },
@@ -28,133 +25,67 @@ let db = {
   orders: []
 };
 
-// Load initial data if file exists
-try {
-  if (fs.existsSync(DB_PATH)) {
-    const data = fs.readFileSync(DB_PATH, "utf-8");
-    db = JSON.parse(data);
-    console.log("Database loaded from file.");
-  }
-} catch (err) {
-  console.error("Error loading database file, using defaults.");
-}
-
-function saveDb() {
+// Sync with file if exists
+if (fs.existsSync(DB_PATH)) {
   try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
-  } catch (err) {
-    console.error("Error saving database to file.");
-  }
+    db = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+  } catch (e) {}
 }
 
-async function startServer() {
+const save = () => fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+
+// 2. SERVER SETUP
+async function start() {
   const app = express();
   const httpServer = createServer(app);
   const io = new Server(httpServer);
-  const PORT = 3000;
-
-  // 1. GLOBAL LOGGER (MUST BE FIRST)
-  app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
-  });
-
+  
   app.use(express.json());
 
-  // DIRECT API ROUTE AT THE TOP
+  // 3. API ROUTES (ABSOLUTE TOP PRIORITY)
+  // We use a specific handler to ensure JSON is ALWAYS returned
   app.get("/api/menu", (req, res) => {
-    console.log(">>> DIRECT HANDLER: /api/menu");
-    res.json({ categories: db.categories, items: db.items });
-  });
-
-  // ROOT ROUTE FOR DEBUGGING
-  app.get("/", (req, res, next) => {
-    console.log(">>> ROOT HIT");
-    next();
-  });
-
-  // 2. API ROUTES (DIRECTLY ON APP)
-  app.get("/api/menu", (req, res) => {
-    console.log(">>> HANDLER: /api/menu");
-    res.json({ categories: db.categories, items: db.items });
-  });
-
-  app.get("/api/ping", (req, res) => {
-    console.log(">>> HANDLER: /api/ping");
-    res.json({ status: "ok" });
+    console.log(">>> API REQUEST: /api/menu");
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(200).send(JSON.stringify({
+      categories: db.categories,
+      items: db.items
+    }));
   });
 
   app.post("/api/orders", (req, res) => {
-    console.log(">>> HANDLER: POST /api/orders");
-    try {
-      const { location_id, items, total } = req.body;
-      const newOrder: any = {
-        id: Date.now(),
-        location_id,
-        items,
-        total,
-        status: 'pending',
-        created_at: new Date().toISOString()
-      };
-      db.orders.push(newOrder);
-      saveDb();
-      io.emit("new_order", newOrder);
-      res.json(newOrder);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
+    const order = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
+    db.orders.push(order);
+    save();
+    io.emit("new_order", order);
+    return res.json(order);
   });
 
-  app.get("/api/orders", (req, res) => {
-    console.log(">>> HANDLER: GET /api/orders");
-    res.json(db.orders);
-  });
+  app.get("/api/orders", (req, res) => res.json(db.orders));
 
-  app.patch("/api/orders/:id/status", (req, res) => {
-    console.log(`>>> HANDLER: PATCH /api/orders/${req.params.id}`);
-    const { status } = req.body;
-    const order: any = db.orders.find((o: any) => o.id === parseInt(req.params.id));
-    if (order) {
-      order.status = status;
-      saveDb();
-      res.json({ success: true });
-    } else {
-      res.status(404).json({ error: "Order not found" });
-    }
-  });
-
-  // 3. CATCH-ALL FOR /API TO PREVENT HTML FALLBACK
-  app.all("/api/*", (req, res) => {
-    console.log(`>>> API 404: ${req.method} ${req.url}`);
-    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
-  });
-
-  // 4. VITE MIDDLEWARE (FOR DEVELOPMENT)
-  const isProd = process.env.NODE_ENV === "production";
+  // 4. VITE / STATIC ASSETS
+  const distPath = path.join(__dirname, "dist");
+  const isProd = process.env.NODE_ENV === "production" && fs.existsSync(distPath);
   
   if (!isProd) {
-    console.log("Starting in development mode with Vite middleware...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    console.log("Starting in production mode...");
     const distPath = path.join(__dirname, "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*", (req, res, next) => {
+      // Don't serve HTML for API routes that might have failed
+      if (req.url.startsWith('/api/')) return next();
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  io.on("connection", (socket) => {
-    console.log("Client connected via Socket.io");
-  });
-
-  httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  httpServer.listen(3000, "0.0.0.0", () => {
+    console.log("SERVER RUNNING ON PORT 3000");
   });
 }
 
-startServer();
+start();

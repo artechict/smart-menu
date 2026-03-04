@@ -34,7 +34,8 @@ export default function CustomerMenu() {
         // Small delay to ensure server middleware is fully ready
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const res = await fetch(`${window.location.origin}/api/menu`, { signal: controller.signal });
+        // Use cache buster to bypass any proxy/browser caching
+        const res = await fetch(`${window.location.origin}/api/menu?t=${Date.now()}`, { signal: controller.signal });
         
         // Clone the response so we can read it twice if needed
         const resClone = res.clone();
@@ -151,7 +152,7 @@ export default function CustomerMenu() {
       <header className="p-6 pt-12">
         <div className="flex justify-between items-start mb-2">
           <div>
-            <h1 className="text-4xl font-serif font-light tracking-tight">The Grand</h1>
+            <h1 className="text-4xl font-serif font-light tracking-tight">The Grand - Live</h1>
             <p className="text-sm text-stone-500 uppercase tracking-widest mt-1">Restaurant & Hotel</p>
           </div>
           <div className="bg-stone-200/50 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-tighter">
