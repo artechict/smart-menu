@@ -30,18 +30,12 @@ function getDb() {
     if (fs.existsSync(DB_PATH)) {
       return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
     }
-  } catch (e) {
-    console.error("DB Read Error:", e);
-  }
+  } catch (e) { console.error("DB Read Error:", e); }
   return initialDb;
 }
 
 function saveDb(data: any) {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error("DB Save Error:", e);
-  }
+  try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2)); } catch (e) { console.error("DB Save Error:", e); }
 }
 
 // --- 2. SERVER STARTUP ---
@@ -52,53 +46,58 @@ async function startServer() {
   
   app.use(express.json());
 
-  // --- 3. DIRECT API ROUTES (NO ROUTER FOR MAXIMUM COMPATIBILITY) ---
-  app.get("/api/menu", (req, res) => {
-    console.log(">>> API HIT: /api/menu");
-    const db = getDb();
-    res.setHeader('Content-Type', 'application/json');
-    res.status(200).json({ categories: db.categories, items: db.items });
+  // --- 3. LOGGING MIDDLEWARE ---
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
+    next();
   });
 
-  app.get("/api/ping", (req, res) => {
-    res.json({ status: "online", timestamp: new Date().toISOString() });
+  // --- 4. ISOLATED DATABASE ROUTES ---
+  // We use /internal-db instead of /api to avoid any Vite/Proxy interference
+  const dbRouter = express.Router();
+
+  dbRouter.get("/menu", (req, res) => {
+    console.log(">>> Serving Menu Data");
+    const db = getDb();
+    res.json({ categories: db.categories, items: db.items });
   });
 
-  app.post("/api/orders", (req, res) => {
-    console.log(">>> API HIT: POST /api/orders");
+  dbRouter.post("/orders", (req, res) => {
+    console.log(">>> Saving New Order");
     const db = getDb();
-    const newOrder = { 
-      ...req.body, 
-      id: Date.now(), 
-      status: 'pending', 
-      created_at: new Date().toISOString() 
-    };
+    const newOrder = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
     db.orders.push(newOrder);
     saveDb(db);
     io.emit("new_order", newOrder);
     res.status(201).json(newOrder);
   });
 
-  // --- 4. VITE INTEGRATION ---
+  app.use("/internal-db", dbRouter);
+
+  // --- 5. VITE / STATIC ASSETS ---
   const isProd = process.env.NODE_ENV === "production";
+  
   if (!isProd) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
-    app.use(vite.middlewares);
+    // Ensure API routes are NOT handled by Vite
+    app.use((req, res, next) => {
+      if (req.url.startsWith('/internal-db')) return next();
+      vite.middlewares(req, res, next);
+    });
   } else {
     const distPath = path.join(__dirname, "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      // Prevent HTML fallback for API routes
-      if (req.url.startsWith('/api/')) return res.status(404).json({ error: "API not found" });
+      if (req.url.startsWith('/internal-db')) return res.status(404).json({ error: "Not Found" });
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
   httpServer.listen(3000, "0.0.0.0", () => {
-    console.log("SERVER READY ON PORT 3000");
+    console.log("SERVER READY ON PORT 3000 - DB PATH: /internal-db");
   });
 }
 

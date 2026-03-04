@@ -47,16 +47,15 @@ export default function CustomerMenu() {
   useEffect(() => {
     const loadMenu = async (retries = 3) => {
       try {
-        // Try absolute URL first for better reliability in some environments
-        const apiUrl = `${window.location.origin}/api/menu?t=${Date.now()}`;
+        // Use the new isolated path
+        const apiUrl = `${window.location.origin}/internal-db/menu?t=${Date.now()}`;
         const res = await fetch(apiUrl);
         
-        if (!res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (!res.ok || !contentType || !contentType.includes("application/json")) {
           const text = await res.text();
-          if (text.includes("<!doctype html>")) {
-            throw new Error("Server returned HTML instead of JSON (Routing Error)");
-          }
-          throw new Error(`Server error: ${res.status}`);
+          console.error("Invalid response from server:", text.substring(0, 100));
+          throw new Error("Server returned invalid data (HTML instead of JSON)");
         }
         
         const data = await res.json();
@@ -67,7 +66,6 @@ export default function CustomerMenu() {
       } catch (err: any) {
         console.error("Menu load error:", err);
         if (retries > 0) {
-          console.log(`Retrying... (${retries} attempts left)`);
           setTimeout(() => loadMenu(retries - 1), 1000);
         } else {
           toast.error(`Database Error: ${err.message}`);
@@ -107,7 +105,7 @@ export default function CustomerMenu() {
     if (cart.length === 0) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/orders", {
+      const res = await fetch("/internal-db/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
