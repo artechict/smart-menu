@@ -67,7 +67,7 @@ export default function CustomerMenu() {
     const loadMenu = async (retries = 3) => {
       try {
         // Use the new isolated path with versioning
-        const apiUrl = `/api/v1/menu?t=${Date.now()}`;
+        const apiUrl = `/ultimate-api/menu?v=${Date.now()}`;
         const res = await fetch(apiUrl);
         
         const contentType = res.headers.get("content-type");
@@ -124,7 +124,7 @@ export default function CustomerMenu() {
     if (cart.length === 0) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/v1/orders", {
+      const res = await fetch("/ultimate-api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

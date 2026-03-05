@@ -10,7 +10,7 @@ import { JSONFilePreset } from 'lowdb/node';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "db.json");
 
-// --- 1. RELIABLE DATABASE (LOWDB) ---
+// --- 1. THE ULTIMATE DATABASE ENGINE ---
 const defaultData = {
   categories: [
     { id: 1, name: "Appetizers", icon: "Soup" },
@@ -27,7 +27,7 @@ const defaultData = {
 };
 
 async function startServer() {
-  // Initialize LowDB
+  // Initialize Database
   const db = await JSONFilePreset(DB_PATH, defaultData);
 
   const app = express();
@@ -36,34 +36,27 @@ async function startServer() {
   
   app.use(express.json());
 
-  // --- 2. DEBUG MIDDLEWARE ---
-  app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
-  });
-
-  // --- 3. THE "ONE AND ONLY" API (PRIORITY #1) ---
-  // We use a very distinct path to avoid any Vite/Static interference
-  const api = express.Router();
-
-  // Middleware to force JSON and disable caching
-  api.use((req, res, next) => {
+  // --- 2. API PROTECTION LAYER ---
+  // This ensures that any request starting with /ultimate-api NEVER returns HTML
+  app.use("/ultimate-api", (req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     next();
   });
 
+  // --- 3. THE ROUTES ---
+  
   // Menu
-  api.get("/menu", (req, res) => {
+  app.get("/ultimate-api/menu", (req, res) => {
     res.json({ categories: db.data.categories, items: db.data.items });
   });
 
   // Orders
-  api.get("/orders", (req, res) => {
+  app.get("/ultimate-api/orders", (req, res) => {
     res.json(db.data.orders || []);
   });
 
-  api.post("/orders", async (req, res) => {
+  app.post("/ultimate-api/orders", async (req, res) => {
     const newOrder = { 
       ...req.body, 
       id: Date.now(), 
@@ -77,15 +70,15 @@ async function startServer() {
     res.status(201).json(newOrder);
   });
 
-  // Admin: Categories
-  api.post("/admin/categories", async (req, res) => {
+  // Admin Actions
+  app.post("/ultimate-api/admin/categories", async (req, res) => {
     const newCat = { ...req.body, id: Date.now() };
     db.data.categories.push(newCat);
     await db.write();
     res.status(201).json(newCat);
   });
 
-  api.delete("/admin/categories/:id", async (req, res) => {
+  app.delete("/ultimate-api/admin/categories/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.categories = db.data.categories.filter((c: any) => c.id !== id);
     db.data.items = db.data.items.filter((i: any) => i.category_id !== id);
@@ -93,59 +86,40 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // Admin: Items
-  api.post("/admin/items", async (req, res) => {
+  app.post("/ultimate-api/admin/items", async (req, res) => {
     const newItem = { ...req.body, id: Date.now() };
     db.data.items.push(newItem);
     await db.write();
     res.status(201).json(newItem);
   });
 
-  api.delete("/admin/items/:id", async (req, res) => {
+  app.delete("/ultimate-api/admin/items/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.items = db.data.items.filter((i: any) => i.id !== id);
     await db.write();
     res.json({ success: true });
   });
 
-  // Mount the API at /api/v1
-  app.use("/api/v1", api);
-
-  // --- 4. VITE / STATIC (LOWER PRIORITY) ---
-  const distPath = path.join(__dirname, "dist");
-  // Force Dev Mode if dist is missing
-  const isProd = process.env.NODE_ENV === "production" && fs.existsSync(distPath);
-  
-  if (!isProd) {
-    console.log(">>> Starting in DEVELOPMENT mode (Vite Middleware)");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    console.log(">>> Starting in PRODUCTION mode (Static Assets)");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      if (req.url.startsWith('/api/v1')) return res.status(404).json({ error: "API Route Not Found" });
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
+  // --- 4. VITE MIDDLEWARE ---
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: "spa",
+  });
+  app.use(vite.middlewares);
 
   const PORT = 3000;
   httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`
 ================================================
-  🚀 RESTAURANT SERVER READY
-  📍 PORT: ${PORT}
-  📂 DB: ${DB_PATH}
-  🔗 API: /api/v1/
+  ✅ ULTIMATE SERVER IS LIVE
+  🚀 PORT: ${PORT}
+  🔗 API: /ultimate-api/
 ================================================
     `);
   });
 }
 
 startServer().catch(err => {
-  console.error("FATAL SERVER ERROR:", err);
+  console.error("CRITICAL SERVER ERROR:", err);
   process.exit(1);
 });
