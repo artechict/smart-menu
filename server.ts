@@ -44,24 +44,33 @@ async function startServer() {
 
   // --- 3. THE "ONE AND ONLY" API (PRIORITY #1) ---
   // We use a very distinct path to avoid any Vite/Static interference
-  
+  const api = express.Router();
+
+  // Middleware to force JSON and disable caching
+  api.use((req, res, next) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    next();
+  });
+
   // Menu
-  app.get("/api/v1/menu", (req, res) => {
+  api.get("/menu", (req, res) => {
     res.json({ categories: db.data.categories, items: db.data.items });
   });
 
   // Orders
-  app.get("/api/v1/orders", (req, res) => {
+  api.get("/orders", (req, res) => {
     res.json(db.data.orders || []);
   });
 
-  app.post("/api/v1/orders", async (req, res) => {
+  api.post("/orders", async (req, res) => {
     const newOrder = { 
       ...req.body, 
       id: Date.now(), 
       status: 'pending', 
       created_at: new Date().toISOString() 
     };
+    if (!db.data.orders) db.data.orders = [];
     db.data.orders.push(newOrder);
     await db.write();
     io.emit("new_order", newOrder);
@@ -69,14 +78,14 @@ async function startServer() {
   });
 
   // Admin: Categories
-  app.post("/api/v1/admin/categories", async (req, res) => {
+  api.post("/admin/categories", async (req, res) => {
     const newCat = { ...req.body, id: Date.now() };
     db.data.categories.push(newCat);
     await db.write();
     res.status(201).json(newCat);
   });
 
-  app.delete("/api/v1/admin/categories/:id", async (req, res) => {
+  api.delete("/admin/categories/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.categories = db.data.categories.filter((c: any) => c.id !== id);
     db.data.items = db.data.items.filter((i: any) => i.category_id !== id);
@@ -85,23 +94,27 @@ async function startServer() {
   });
 
   // Admin: Items
-  app.post("/api/v1/admin/items", async (req, res) => {
+  api.post("/admin/items", async (req, res) => {
     const newItem = { ...req.body, id: Date.now() };
     db.data.items.push(newItem);
     await db.write();
     res.status(201).json(newItem);
   });
 
-  app.delete("/api/v1/admin/items/:id", async (req, res) => {
+  api.delete("/admin/items/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.items = db.data.items.filter((i: any) => i.id !== id);
     await db.write();
     res.json({ success: true });
   });
 
+  // Mount the API at /api/v1
+  app.use("/api/v1", api);
+
   // --- 4. VITE / STATIC (LOWER PRIORITY) ---
   const distPath = path.join(__dirname, "dist");
-  const isProd = process.env.NODE_ENV === "production" || fs.existsSync(distPath);
+  // Force Dev Mode if dist is missing
+  const isProd = process.env.NODE_ENV === "production" && fs.existsSync(distPath);
   
   if (!isProd) {
     console.log(">>> Starting in DEVELOPMENT mode (Vite Middleware)");
@@ -114,10 +127,7 @@ async function startServer() {
     console.log(">>> Starting in PRODUCTION mode (Static Assets)");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      // If it's an API request that failed to match above, return 404 JSON
-      if (req.url.startsWith('/api/v1')) {
-        return res.status(404).json({ error: "API Route Not Found" });
-      }
+      if (req.url.startsWith('/api/v1')) return res.status(404).json({ error: "API Route Not Found" });
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
