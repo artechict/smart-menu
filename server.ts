@@ -36,26 +36,34 @@ async function startServer() {
   
   app.use(express.json());
 
-  // --- 2. API PROTECTION LAYER ---
-  // This ensures that any request starting with /ultimate-api NEVER returns HTML
-  app.use("/ultimate-api", (req, res, next) => {
+  // --- 2. API PROTECTION & LOGGING ---
+  app.use((req, res, next) => {
+    res.setHeader('X-Server-Version', 'ULTIMATE-V3');
+    if (req.url.includes('api')) {
+      console.log(`[API REQUEST] ${req.method} ${req.url}`);
+    }
+    next();
+  });
+
+  app.use(["/ultimate-api", "/api", "/api-v1"], (req, res, next) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     next();
   });
 
-  // --- 3. THE ROUTES ---
-  
-  // Helper to handle both old and new routes
+  // --- 3. THE ROUTES (MOVED TO TOP) ---
   const handleMenu = (req: any, res: any) => {
+    console.log("Serving Menu...");
     res.json({ categories: db.data.categories, items: db.data.items });
   };
 
   const handleOrders = (req: any, res: any) => {
+    console.log("Serving Orders...");
     res.json(db.data.orders || []);
   };
 
   const handleCreateOrder = async (req: any, res: any) => {
+    console.log("Creating Order:", req.body);
     const newOrder = { 
       ...req.body, 
       id: Date.now(), 
@@ -69,24 +77,20 @@ async function startServer() {
     res.status(201).json(newOrder);
   };
 
-  // NEW ROUTES
   app.get("/ultimate-api/menu", handleMenu);
   app.get("/ultimate-api/orders", handleOrders);
   app.post("/ultimate-api/orders", handleCreateOrder);
-
-  // BACKWARDS COMPATIBILITY (for cached browsers)
   app.get(["/api/menu", "/api/v1/menu", "/api-v1/menu"], handleMenu);
   app.get(["/api/orders", "/api/v1/orders", "/api-v1/orders"], handleOrders);
   app.post(["/api/orders", "/api/v1/orders", "/api-v1/orders"], handleCreateOrder);
 
-  // Admin Actions (New and Old)
-  const handleAdminCats = async (req: any, res: any) => {
+  // Admin Actions
+  app.post(["/ultimate-api/admin/categories", "/api/v1/admin/categories"], async (req, res) => {
     const newCat = { ...req.body, id: Date.now() };
     db.data.categories.push(newCat);
     await db.write();
     res.status(201).json(newCat);
-  };
-  app.post(["/ultimate-api/admin/categories", "/api/v1/admin/categories"], handleAdminCats);
+  });
 
   app.delete(["/ultimate-api/admin/categories/:id", "/api/v1/admin/categories/:id"], async (req, res) => {
     const id = parseInt(req.params.id);
@@ -110,15 +114,10 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // --- 3.5 API CATCH-ALL (PREVENT HTML FALLBACK) ---
-  // This is the most important part to stop the "HTML instead of JSON" error
+  // API Catch-all
   app.use(["/api", "/ultimate-api", "/api-v1"], (req, res) => {
     console.log(`[API 404] ${req.method} ${req.url}`);
-    res.status(404).json({ 
-      error: "API Route Not Found", 
-      message: "The requested API endpoint does not exist on this server.",
-      path: req.url 
-    });
+    res.status(404).json({ error: "API Route Not Found", path: req.url });
   });
 
   // --- 4. VITE MIDDLEWARE ---
