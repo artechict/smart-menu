@@ -64,25 +64,32 @@ export default function CustomerMenu() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadMenu = async () => {
+    const loadMenu = async (retries = 3) => {
       try {
-        // Standard API path, now handled by Vite Proxy
-        const res = await fetch(`/api/menu?t=${Date.now()}`);
-        const text = await res.text();
+        // Use the new isolated path
+        const apiUrl = `${window.location.origin}/internal-db/menu?t=${Date.now()}`;
+        const res = await fetch(apiUrl);
         
-        if (text.includes("<!doctype html>")) {
-          console.warn("Server returned HTML. Using fallback data.");
-          return;
+        const contentType = res.headers.get("content-type");
+        if (!res.ok || !contentType || !contentType.includes("application/json")) {
+          const text = await res.text();
+          console.error("Invalid response from server:", text.substring(0, 100));
+          throw new Error("Server returned invalid data (HTML instead of JSON)");
         }
         
-        const data = JSON.parse(text);
+        const data = await res.json();
         setCategories(data.categories);
         setItems(data.items);
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
+        setLoading(false);
       } catch (err: any) {
         console.error("Menu load error:", err);
-      } finally {
-        setLoading(false);
+        if (retries > 0) {
+          setTimeout(() => loadMenu(retries - 1), 1000);
+        } else {
+          toast.error(`Database Error: ${err.message}`);
+          setLoading(false);
+        }
       }
     };
     loadMenu();
@@ -117,7 +124,7 @@ export default function CustomerMenu() {
     if (cart.length === 0) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/orders", {
+      const res = await fetch("/internal-db/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -31,7 +31,6 @@ function getDb() {
       const data = fs.readFileSync(DB_PATH, "utf-8");
       if (data.trim()) {
         const parsed = JSON.parse(data);
-        // Ensure all required fields exist
         return {
           categories: parsed.categories || initialDb.categories,
           items: parsed.items || initialDb.items,
@@ -39,14 +38,12 @@ function getDb() {
         };
       }
     }
-  } catch (e) {
-    console.error("DB Read Error, using initial data");
-  }
+  } catch (e) { console.error("DB Read Error"); }
   return initialDb;
 }
 
 function saveDb(data: any) {
-  try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2)); } catch (e) {}
+  try { fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2)); } catch (e) { console.error("DB Save Error"); }
 }
 
 async function startServer() {
@@ -56,65 +53,59 @@ async function startServer() {
   
   app.use(express.json());
 
-  // --- 2. API ROUTES (Standard & Clean) ---
-  const api = express.Router();
+  // --- 2. PRIORITY API MIDDLEWARE (BRUTE FORCE) ---
+  // We handle these BEFORE everything else to ensure no interception by Vite
+  app.use((req, res, next) => {
+    // Force JSON for all /internal-db requests
+    if (req.url.includes('/internal-db/')) {
+      res.setHeader('Content-Type', 'application/json');
+      const db = getDb();
 
-  api.get("/menu", (req, res) => {
-    const db = getDb();
-    res.setHeader('Content-Type', 'application/json');
-    res.json({ categories: db.categories, items: db.items });
+      if (req.url.includes('/menu')) {
+        return res.json({ categories: db.categories, items: db.items });
+      }
+      if (req.url.includes('/orders')) {
+        if (req.method === 'GET') return res.json(db.orders);
+        if (req.method === 'POST') {
+          const newOrder = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
+          db.orders.push(newOrder);
+          saveDb(db);
+          io.emit("new_order", newOrder);
+          return res.status(201).json(newOrder);
+        }
+      }
+      if (req.url.includes('/admin/categories')) {
+        if (req.method === 'POST') {
+          const newCat = { ...req.body, id: Date.now() };
+          db.categories.push(newCat);
+          saveDb(db);
+          return res.status(201).json(newCat);
+        }
+        if (req.method === 'DELETE') {
+          const id = parseInt(req.url.split('/').pop() || "0");
+          db.categories = db.categories.filter((c: any) => c.id !== id);
+          db.items = db.items.filter((i: any) => i.category_id !== id);
+          saveDb(db);
+          return res.json({ success: true });
+        }
+      }
+      if (req.url.includes('/admin/items')) {
+        if (req.method === 'POST') {
+          const newItem = { ...req.body, id: Date.now() };
+          db.items.push(newItem);
+          saveDb(db);
+          return res.status(201).json(newItem);
+        }
+        if (req.method === 'DELETE') {
+          const id = parseInt(req.url.split('/').pop() || "0");
+          db.items = db.items.filter((i: any) => i.id !== id);
+          saveDb(db);
+          return res.json({ success: true });
+        }
+      }
+    }
+    next();
   });
-
-  api.get("/orders", (req, res) => {
-    const db = getDb();
-    res.setHeader('Content-Type', 'application/json');
-    res.json(db.orders || []);
-  });
-
-  api.post("/orders", (req, res) => {
-    const db = getDb();
-    const newOrder = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
-    if (!db.orders) db.orders = [];
-    db.orders.push(newOrder);
-    saveDb(db);
-    io.emit("new_order", newOrder);
-    res.setHeader('Content-Type', 'application/json');
-    res.status(201).json(newOrder);
-  });
-
-  api.post("/admin/categories", (req, res) => {
-    const db = getDb();
-    const newCat = { ...req.body, id: Date.now() };
-    db.categories.push(newCat);
-    saveDb(db);
-    res.setHeader('Content-Type', 'application/json');
-    res.status(201).json(newCat);
-  });
-
-  api.delete("/admin/categories/:id", (req, res) => {
-    const db = getDb();
-    db.categories = db.categories.filter((c: any) => c.id !== parseInt(req.params.id));
-    db.items = db.items.filter((i: any) => i.category_id !== parseInt(req.params.id));
-    saveDb(db);
-    res.json({ success: true });
-  });
-
-  api.post("/admin/items", (req, res) => {
-    const db = getDb();
-    const newItem = { ...req.body, id: Date.now() };
-    db.items.push(newItem);
-    saveDb(db);
-    res.status(201).json(newItem);
-  });
-
-  api.delete("/admin/items/:id", (req, res) => {
-    const db = getDb();
-    db.items = db.items.filter((i: any) => i.id !== parseInt(req.params.id));
-    saveDb(db);
-    res.json({ success: true });
-  });
-
-  app.use("/api", api);
 
   // --- 3. VITE / STATIC ---
   const distPath = path.join(__dirname, "dist");
@@ -129,13 +120,13 @@ async function startServer() {
   } else {
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      if (req.url.startsWith('/api')) return res.status(404).json({ error: "Not Found" });
+      if (req.url.includes('/internal-db/')) return res.status(404).json({ error: "Not Found" });
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
   httpServer.listen(3000, "0.0.0.0", () => {
-    console.log("SERVER READY ON PORT 3000 - API AT /api");
+    console.log("SERVER READY ON PORT 3000 - API AT /internal-db/");
   });
 }
 
