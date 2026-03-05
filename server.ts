@@ -9,7 +9,7 @@ import fs from "fs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "db.json");
 
-// --- 1. ROBUST DATABASE LOGIC ---
+// --- 1. DATABASE ENGINE ---
 const initialDb = {
   categories: [
     { id: 1, name: "Appetizers", icon: "Soup" },
@@ -29,14 +29,7 @@ function getDb() {
   try {
     if (fs.existsSync(DB_PATH)) {
       const data = fs.readFileSync(DB_PATH, "utf-8");
-      if (data.trim()) {
-        const parsed = JSON.parse(data);
-        return {
-          categories: parsed.categories || initialDb.categories,
-          items: parsed.items || initialDb.items,
-          orders: parsed.orders || []
-        };
-      }
+      if (data.trim()) return JSON.parse(data);
     }
   } catch (e) { console.error("DB Read Error"); }
   return initialDb;
@@ -53,80 +46,104 @@ async function startServer() {
   
   app.use(express.json());
 
-  // --- 2. PRIORITY API MIDDLEWARE (BRUTE FORCE) ---
-  // We handle these BEFORE everything else to ensure no interception by Vite
-  app.use((req, res, next) => {
-    // Force JSON for all /internal-db requests
-    if (req.url.includes('/internal-db/')) {
-      res.setHeader('Content-Type', 'application/json');
-      const db = getDb();
+  // --- 2. THE "GOLDEN" API ROUTES (PRIORITY #1) ---
+  // These routes are registered BEFORE Vite to ensure they are never intercepted.
+  const api = express.Router();
 
-      if (req.url.includes('/menu')) {
-        return res.json({ categories: db.categories, items: db.items });
-      }
-      if (req.url.includes('/orders')) {
-        if (req.method === 'GET') return res.json(db.orders);
-        if (req.method === 'POST') {
-          const newOrder = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
-          db.orders.push(newOrder);
-          saveDb(db);
-          io.emit("new_order", newOrder);
-          return res.status(201).json(newOrder);
-        }
-      }
-      if (req.url.includes('/admin/categories')) {
-        if (req.method === 'POST') {
-          const newCat = { ...req.body, id: Date.now() };
-          db.categories.push(newCat);
-          saveDb(db);
-          return res.status(201).json(newCat);
-        }
-        if (req.method === 'DELETE') {
-          const id = parseInt(req.url.split('/').pop() || "0");
-          db.categories = db.categories.filter((c: any) => c.id !== id);
-          db.items = db.items.filter((i: any) => i.category_id !== id);
-          saveDb(db);
-          return res.json({ success: true });
-        }
-      }
-      if (req.url.includes('/admin/items')) {
-        if (req.method === 'POST') {
-          const newItem = { ...req.body, id: Date.now() };
-          db.items.push(newItem);
-          saveDb(db);
-          return res.status(201).json(newItem);
-        }
-        if (req.method === 'DELETE') {
-          const id = parseInt(req.url.split('/').pop() || "0");
-          db.items = db.items.filter((i: any) => i.id !== id);
-          saveDb(db);
-          return res.json({ success: true });
-        }
-      }
-    }
+  // Middleware to force JSON and disable caching
+  api.use((req, res, next) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     next();
   });
 
-  // --- 3. VITE / STATIC ---
+  api.get("/menu", (req, res) => {
+    console.log(">>> API: Serving Menu");
+    const db = getDb();
+    res.send(JSON.stringify({ categories: db.categories, items: db.items }));
+  });
+
+  api.get("/orders", (req, res) => {
+    console.log(">>> API: Serving Orders");
+    const db = getDb();
+    res.send(JSON.stringify(db.orders || []));
+  });
+
+  api.post("/orders", (req, res) => {
+    console.log(">>> API: Saving Order");
+    const db = getDb();
+    const newOrder = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
+    if (!db.orders) db.orders = [];
+    db.orders.push(newOrder);
+    saveDb(db);
+    io.emit("new_order", newOrder);
+    res.status(201).send(JSON.stringify(newOrder));
+  });
+
+  api.post("/admin/categories", (req, res) => {
+    const db = getDb();
+    const newCat = { ...req.body, id: Date.now() };
+    db.categories.push(newCat);
+    saveDb(db);
+    res.status(201).send(JSON.stringify(newCat));
+  });
+
+  api.delete("/admin/categories/:id", (req, res) => {
+    const db = getDb();
+    const id = parseInt(req.params.id);
+    db.categories = db.categories.filter((c: any) => c.id !== id);
+    db.items = db.items.filter((i: any) => i.category_id !== id);
+    saveDb(db);
+    res.send(JSON.stringify({ success: true }));
+  });
+
+  api.post("/admin/items", (req, res) => {
+    const db = getDb();
+    const newItem = { ...req.body, id: Date.now() };
+    db.items.push(newItem);
+    saveDb(db);
+    res.status(201).send(JSON.stringify(newItem));
+  });
+
+  api.delete("/admin/items/:id", (req, res) => {
+    const db = getDb();
+    const id = parseInt(req.params.id);
+    db.items = db.items.filter((i: any) => i.id !== id);
+    saveDb(db);
+    res.send(JSON.stringify({ success: true }));
+  });
+
+  // Mount the API at /api-v1
+  app.use("/api-v1", api);
+
+  // --- 3. VITE / STATIC (LOWER PRIORITY) ---
   const distPath = path.join(__dirname, "dist");
   const isProd = process.env.NODE_ENV === "production" && fs.existsSync(distPath);
   
   if (!isProd) {
+    console.log(">>> Starting in DEVELOPMENT mode (Vite)");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
+    console.log(">>> Starting in PRODUCTION mode");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      if (req.url.includes('/internal-db/')) return res.status(404).json({ error: "Not Found" });
+      // If an API request somehow reached here, it's a 404
+      if (req.url.startsWith('/api-v1')) return res.status(404).json({ error: "API Route Not Found" });
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
   httpServer.listen(3000, "0.0.0.0", () => {
-    console.log("SERVER READY ON PORT 3000 - API AT /internal-db/");
+    console.log("========================================");
+    console.log("  ULTRA-STABLE SERVER READY ON PORT 3000");
+    console.log("  API BASE PATH: /api-v1");
+    console.log("========================================");
   });
 }
 

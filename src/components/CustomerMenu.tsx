@@ -66,8 +66,8 @@ export default function CustomerMenu() {
   useEffect(() => {
     const loadMenu = async (retries = 3) => {
       try {
-        // Use the new isolated path
-        const apiUrl = `${window.location.origin}/internal-db/menu?t=${Date.now()}`;
+        // Use the new isolated path with versioning
+        const apiUrl = `/api-v1/menu?t=${Date.now()}`;
         const res = await fetch(apiUrl);
         
         const contentType = res.headers.get("content-type");
@@ -124,7 +124,7 @@ export default function CustomerMenu() {
     if (cart.length === 0) return;
     setLoading(true);
     try {
-      const res = await fetch("/internal-db/orders", {
+      const res = await fetch("/api-v1/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

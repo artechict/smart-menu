@@ -43,10 +43,10 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      console.log("Fetching admin data from isolated DB...");
+      console.log("Fetching admin data from isolated DB (v1)...");
       const [menuRes, ordersRes] = await Promise.all([
-        fetch(`${window.location.origin}/internal-db/menu?t=${Date.now()}`),
-        fetch(`${window.location.origin}/internal-db/orders?t=${Date.now()}`)
+        fetch(`/api-v1/menu?t=${Date.now()}`),
+        fetch(`/api-v1/orders?t=${Date.now()}`)
       ]);
       
       if (!menuRes.ok) throw new Error(`Menu API error: ${menuRes.status}`);
@@ -55,7 +55,7 @@ export default function AdminDashboard() {
       const menuData = await menuRes.json();
       const ordersData = await ordersRes.json();
       
-      console.log("Data received from isolated DB:", { menuData, ordersData });
+      console.log("Data received from isolated DB (v1):", { menuData, ordersData });
 
       if (menuData && menuData.categories) setCategories(menuData.categories);
       if (menuData && menuData.items) setItems(menuData.items);
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
   const addCategory = async () => {
     if (!newCatName) return;
     try {
-      const res = await fetch("/internal-db/admin/categories", {
+      const res = await fetch("/api-v1/admin/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newCatName, icon: newCatIcon })
@@ -98,7 +98,7 @@ export default function AdminDashboard() {
   const deleteCategory = async (id: number) => {
     if (!confirm("Are you sure? This will delete all items in this category.")) return;
     try {
-      const res = await fetch(`/internal-db/admin/categories/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api-v1/admin/categories/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Category deleted");
         fetchData();
@@ -111,7 +111,7 @@ export default function AdminDashboard() {
   const addItem = async () => {
     if (!newItem.name || !newItem.price) return;
     try {
-      const res = await fetch("/internal-db/admin/items", {
+      const res = await fetch("/api-v1/admin/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newItem)
@@ -129,7 +129,7 @@ export default function AdminDashboard() {
 
   const deleteItem = async (id: number) => {
     try {
-      const res = await fetch(`/internal-db/admin/items/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api-v1/admin/items/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Item deleted");
         fetchData();
