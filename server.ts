@@ -46,17 +46,16 @@ async function startServer() {
 
   // --- 3. THE ROUTES ---
   
-  // Menu
-  app.get("/ultimate-api/menu", (req, res) => {
+  // Helper to handle both old and new routes
+  const handleMenu = (req: any, res: any) => {
     res.json({ categories: db.data.categories, items: db.data.items });
-  });
+  };
 
-  // Orders
-  app.get("/ultimate-api/orders", (req, res) => {
+  const handleOrders = (req: any, res: any) => {
     res.json(db.data.orders || []);
-  });
+  };
 
-  app.post("/ultimate-api/orders", async (req, res) => {
+  const handleCreateOrder = async (req: any, res: any) => {
     const newOrder = { 
       ...req.body, 
       id: Date.now(), 
@@ -68,17 +67,28 @@ async function startServer() {
     await db.write();
     io.emit("new_order", newOrder);
     res.status(201).json(newOrder);
-  });
+  };
 
-  // Admin Actions
-  app.post("/ultimate-api/admin/categories", async (req, res) => {
+  // NEW ROUTES
+  app.get("/ultimate-api/menu", handleMenu);
+  app.get("/ultimate-api/orders", handleOrders);
+  app.post("/ultimate-api/orders", handleCreateOrder);
+
+  // BACKWARDS COMPATIBILITY (for cached browsers)
+  app.get(["/api/menu", "/api/v1/menu", "/api-v1/menu"], handleMenu);
+  app.get(["/api/orders", "/api/v1/orders", "/api-v1/orders"], handleOrders);
+  app.post(["/api/orders", "/api/v1/orders", "/api-v1/orders"], handleCreateOrder);
+
+  // Admin Actions (New and Old)
+  const handleAdminCats = async (req: any, res: any) => {
     const newCat = { ...req.body, id: Date.now() };
     db.data.categories.push(newCat);
     await db.write();
     res.status(201).json(newCat);
-  });
+  };
+  app.post(["/ultimate-api/admin/categories", "/api/v1/admin/categories"], handleAdminCats);
 
-  app.delete("/ultimate-api/admin/categories/:id", async (req, res) => {
+  app.delete(["/ultimate-api/admin/categories/:id", "/api/v1/admin/categories/:id"], async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.categories = db.data.categories.filter((c: any) => c.id !== id);
     db.data.items = db.data.items.filter((i: any) => i.category_id !== id);
@@ -86,18 +96,29 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  app.post("/ultimate-api/admin/items", async (req, res) => {
+  app.post(["/ultimate-api/admin/items", "/api/v1/admin/items"], async (req, res) => {
     const newItem = { ...req.body, id: Date.now() };
     db.data.items.push(newItem);
     await db.write();
     res.status(201).json(newItem);
   });
 
-  app.delete("/ultimate-api/admin/items/:id", async (req, res) => {
+  app.delete(["/ultimate-api/admin/items/:id", "/api/v1/admin/items/:id"], async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.items = db.data.items.filter((i: any) => i.id !== id);
     await db.write();
     res.json({ success: true });
+  });
+
+  // --- 3.5 API CATCH-ALL (PREVENT HTML FALLBACK) ---
+  // This is the most important part to stop the "HTML instead of JSON" error
+  app.use(["/api", "/ultimate-api", "/api-v1"], (req, res) => {
+    console.log(`[API 404] ${req.method} ${req.url}`);
+    res.status(404).json({ 
+      error: "API Route Not Found", 
+      message: "The requested API endpoint does not exist on this server.",
+      path: req.url 
+    });
   });
 
   // --- 4. VITE MIDDLEWARE ---
