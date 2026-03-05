@@ -21,14 +21,14 @@ const STATIC_CATEGORIES: Category[] = [
 ];
 
 const STATIC_ITEMS: MenuItem[] = [
-  { id: 1, category_id: 1, name: "Garlic Bread", description: "Toasted bread with garlic butter and herbs", price: 5.99, image_url: "https://picsum.photos/seed/garlic/400/300" },
-  { id: 2, category_id: 2, name: "Bruschetta", description: "Grilled bread topped with tomatoes, garlic and olive oil", price: 7.50, image_url: "https://picsum.photos/seed/tomato/400/300" },
-  { id: 3, category_id: 2, name: "Grilled Salmon", description: "Fresh salmon with asparagus and lemon butter", price: 24.50, image_url: "https://picsum.photos/seed/salmon/400/300" },
-  { id: 4, category_id: 2, name: "Beef Tenderloin", description: "Premium beef with roasted potatoes and red wine sauce", price: 32.00, image_url: "https://picsum.photos/seed/beef/400/300" },
-  { id: 5, category_id: 3, name: "Chocolate Lava Cake", description: "Warm chocolate cake with a molten center", price: 8.99, image_url: "https://picsum.photos/seed/cake/400/300" },
-  { id: 6, category_id: 3, name: "Tiramisu", description: "Classic Italian dessert with coffee and mascarpone", price: 9.50, image_url: "https://picsum.photos/seed/coffee/400/300" },
-  { id: 7, category_id: 4, name: "Fresh Lemonade", description: "Homemade lemonade with mint", price: 4.50, image_url: "https://picsum.photos/seed/lemon/400/300" },
-  { id: 8, category_id: 4, name: "Iced Latte", description: "Double shot espresso with cold milk", price: 5.50, image_url: "https://picsum.photos/seed/latte/400/300" }
+  { id: 1, category_id: 1, name: "Garlic Bread", description: "Toasted bread with garlic butter and herbs", price: 5.99, image_url: "https://picsum.photos/seed/garlic/400/300", available: true },
+  { id: 2, category_id: 2, name: "Bruschetta", description: "Grilled bread topped with tomatoes, garlic and olive oil", price: 7.50, image_url: "https://picsum.photos/seed/tomato/400/300", available: true },
+  { id: 3, category_id: 2, name: "Grilled Salmon", description: "Fresh salmon with asparagus and lemon butter", price: 24.50, image_url: "https://picsum.photos/seed/salmon/400/300", available: true },
+  { id: 4, category_id: 2, name: "Beef Tenderloin", description: "Premium beef with roasted potatoes and red wine sauce", price: 32.00, image_url: "https://picsum.photos/seed/beef/400/300", available: true },
+  { id: 5, category_id: 3, name: "Chocolate Lava Cake", description: "Warm chocolate cake with a molten center", price: 8.99, image_url: "https://picsum.photos/seed/cake/400/300", available: true },
+  { id: 6, category_id: 3, name: "Tiramisu", description: "Classic Italian dessert with coffee and mascarpone", price: 9.50, image_url: "https://picsum.photos/seed/coffee/400/300", available: true },
+  { id: 7, category_id: 4, name: "Fresh Lemonade", description: "Homemade lemonade with mint", price: 4.50, image_url: "https://picsum.photos/seed/lemon/400/300", available: true },
+  { id: 8, category_id: 4, name: "Iced Latte", description: "Double shot espresso with cold milk", price: 5.50, image_url: "https://picsum.photos/seed/latte/400/300", available: true }
 ];
 
 // STATIC FALLBACK DATA (IN CASE SERVER FAILS)
@@ -40,14 +40,14 @@ const FALLBACK_CATEGORIES: Category[] = [
 ];
 
 const FALLBACK_ITEMS: MenuItem[] = [
-  { id: 1, category_id: 1, name: "Garlic Bread", description: "Toasted bread with garlic butter and herbs", price: 5.99, image_url: "https://picsum.photos/seed/garlic/400/300" },
-  { id: 2, category_id: 2, name: "Bruschetta", description: "Grilled bread topped with tomatoes, garlic and olive oil", price: 7.50, image_url: "https://picsum.photos/seed/tomato/400/300" },
-  { id: 3, category_id: 2, name: "Grilled Salmon", description: "Fresh salmon with asparagus and lemon butter", price: 24.50, image_url: "https://picsum.photos/seed/salmon/400/300" },
-  { id: 4, category_id: 2, name: "Beef Tenderloin", description: "Premium beef with roasted potatoes and red wine sauce", price: 32.00, image_url: "https://picsum.photos/seed/beef/400/300" },
-  { id: 5, category_id: 3, name: "Chocolate Lava Cake", description: "Warm chocolate cake with a molten center", price: 8.99, image_url: "https://picsum.photos/seed/cake/400/300" },
-  { id: 6, category_id: 3, name: "Tiramisu", description: "Classic Italian dessert with coffee and mascarpone", price: 9.50, image_url: "https://picsum.photos/seed/coffee/400/300" },
-  { id: 7, category_id: 4, name: "Fresh Lemonade", description: "Homemade lemonade with mint", price: 4.50, image_url: "https://picsum.photos/seed/lemon/400/300" },
-  { id: 8, category_id: 4, name: "Iced Latte", description: "Double shot espresso with cold milk", price: 5.50, image_url: "https://picsum.photos/seed/latte/400/300" }
+  { id: 1, category_id: 1, name: "Garlic Bread", description: "Toasted bread with garlic butter and herbs", price: 5.99, image_url: "https://picsum.photos/seed/garlic/400/300", available: true },
+  { id: 2, category_id: 2, name: "Bruschetta", description: "Grilled bread topped with tomatoes, garlic and olive oil", price: 7.50, image_url: "https://picsum.photos/seed/tomato/400/300", available: true },
+  { id: 3, category_id: 2, name: "Grilled Salmon", description: "Fresh salmon with asparagus and lemon butter", price: 24.50, image_url: "https://picsum.photos/seed/salmon/400/300", available: true },
+  { id: 4, category_id: 2, name: "Beef Tenderloin", description: "Premium beef with roasted potatoes and red wine sauce", price: 32.00, image_url: "https://picsum.photos/seed/beef/400/300", available: true },
+  { id: 5, category_id: 3, name: "Chocolate Lava Cake", description: "Warm chocolate cake with a molten center", price: 8.99, image_url: "https://picsum.photos/seed/cake/400/300", available: true },
+  { id: 6, category_id: 3, name: "Tiramisu", description: "Classic Italian dessert with coffee and mascarpone", price: 9.50, image_url: "https://picsum.photos/seed/coffee/400/300", available: true },
+  { id: 7, category_id: 4, name: "Fresh Lemonade", description: "Homemade lemonade with mint", price: 4.50, image_url: "https://picsum.photos/seed/lemon/400/300", available: true },
+  { id: 8, category_id: 4, name: "Iced Latte", description: "Double shot espresso with cold milk", price: 5.50, image_url: "https://picsum.photos/seed/latte/400/300", available: true }
 ];
 
 export default function CustomerMenu() {
@@ -67,7 +67,7 @@ export default function CustomerMenu() {
     const loadMenu = async (retries = 3) => {
       try {
         // Use the new isolated path with versioning
-        const apiUrl = `/api-v1/menu?t=${Date.now()}`;
+        const apiUrl = `/api/v1/menu?t=${Date.now()}`;
         const res = await fetch(apiUrl);
         
         const contentType = res.headers.get("content-type");
@@ -124,7 +124,7 @@ export default function CustomerMenu() {
     if (cart.length === 0) return;
     setLoading(true);
     try {
-      const res = await fetch("/api-v1/orders", {
+      const res = await fetch("/api/v1/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

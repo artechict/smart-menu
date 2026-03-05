@@ -11,7 +11,7 @@ export interface MenuItem {
   description: string;
   price: number;
   image_url: string;
-  available: number;
+  available: boolean;
 }
 
 export interface OrderItem extends MenuItem {
