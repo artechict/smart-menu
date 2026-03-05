@@ -27,8 +27,21 @@ const initialDb = {
 
 function getDb() {
   try {
-    if (fs.existsSync(DB_PATH)) return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-  } catch (e) {}
+    if (fs.existsSync(DB_PATH)) {
+      const data = fs.readFileSync(DB_PATH, "utf-8");
+      if (data.trim()) {
+        const parsed = JSON.parse(data);
+        // Ensure all required fields exist
+        return {
+          categories: parsed.categories || initialDb.categories,
+          items: parsed.items || initialDb.items,
+          orders: parsed.orders || []
+        };
+      }
+    }
+  } catch (e) {
+    console.error("DB Read Error, using initial data");
+  }
   return initialDb;
 }
 

@@ -43,23 +43,34 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
+      console.log("Fetching admin data...");
       const [menuRes, ordersRes] = await Promise.all([
         fetch(`/api/menu?t=${Date.now()}`),
         fetch(`/api/orders?t=${Date.now()}`)
       ]);
       
+      if (!menuRes.ok) throw new Error(`Menu API error: ${menuRes.status}`);
+      if (!ordersRes.ok) throw new Error(`Orders API error: ${ordersRes.status}`);
+
       const menuData = await menuRes.json();
       const ordersData = await ordersRes.json();
       
-      setCategories(menuData.categories);
-      setItems(menuData.items);
-      setOrders([...ordersData].reverse()); // Show newest orders first
+      console.log("Data received:", { menuData, ordersData });
 
-      if (menuData.categories.length > 0 && newItem.category_id === 0) {
+      if (menuData && menuData.categories) setCategories(menuData.categories);
+      if (menuData && menuData.items) setItems(menuData.items);
+      if (Array.isArray(ordersData)) {
+        setOrders([...ordersData].reverse());
+      } else {
+        setOrders([]);
+      }
+
+      if (menuData?.categories?.length > 0 && newItem.category_id === 0) {
         setNewItem(prev => ({ ...prev, category_id: menuData.categories[0].id }));
       }
-    } catch (error) {
-      toast.error("Failed to load data");
+    } catch (error: any) {
+      console.error("Detailed fetch error:", error);
+      toast.error(`Error: ${error.message || "Failed to load data"}`);
     } finally {
       setLoading(false);
     }
