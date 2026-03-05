@@ -1,15 +1,25 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Plus, Trash2, LayoutGrid, UtensilsCrossed, ArrowLeft, Save, X } from "lucide-react";
+import { Plus, Trash2, LayoutGrid, UtensilsCrossed, ArrowLeft, Save, X, ClipboardList, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Category, MenuItem } from "../types";
+import { Category, MenuItem, OrderItem } from "../types";
 import toast from "react-hot-toast";
+
+interface Order {
+  id: number;
+  location_id: string;
+  items: OrderItem[];
+  total: number;
+  status: string;
+  created_at: string;
+}
 
 export default function AdminDashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"categories" | "items">("categories");
+  const [activeTab, setActiveTab] = useState<"categories" | "items" | "orders">("orders");
 
   // Form states
   const [showAddCategory, setShowAddCategory] = useState(false);
@@ -26,20 +36,30 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    fetchMenu();
+    fetchData();
+    const interval = setInterval(fetchData, 10000); // Auto refresh every 10s
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchMenu = async () => {
+  const fetchData = async () => {
     try {
-      const res = await fetch(`/api/menu?t=${Date.now()}`);
-      const data = await res.json();
-      setCategories(data.categories);
-      setItems(data.items);
-      if (data.categories.length > 0 && newItem.category_id === 0) {
-        setNewItem(prev => ({ ...prev, category_id: data.categories[0].id }));
+      const [menuRes, ordersRes] = await Promise.all([
+        fetch(`/api/menu?t=${Date.now()}`),
+        fetch(`/api/orders?t=${Date.now()}`)
+      ]);
+      
+      const menuData = await menuRes.json();
+      const ordersData = await ordersRes.json();
+      
+      setCategories(menuData.categories);
+      setItems(menuData.items);
+      setOrders([...ordersData].reverse()); // Show newest orders first
+
+      if (menuData.categories.length > 0 && newItem.category_id === 0) {
+        setNewItem(prev => ({ ...prev, category_id: menuData.categories[0].id }));
       }
     } catch (error) {
-      toast.error("Failed to load menu data");
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -57,7 +77,7 @@ export default function AdminDashboard() {
         toast.success("Category added");
         setNewCatName("");
         setShowAddCategory(false);
-        fetchMenu();
+        fetchData();
       }
     } catch (error) {
       toast.error("Error adding category");
@@ -70,7 +90,7 @@ export default function AdminDashboard() {
       const res = await fetch(`/api/admin/categories/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Category deleted");
-        fetchMenu();
+        fetchData();
       }
     } catch (error) {
       toast.error("Error deleting category");
@@ -89,7 +109,7 @@ export default function AdminDashboard() {
         toast.success("Item added");
         setNewItem({ ...newItem, name: "", description: "", price: 0 });
         setShowAddItem(false);
-        fetchMenu();
+        fetchData();
       }
     } catch (error) {
       toast.error("Error adding item");
@@ -101,7 +121,7 @@ export default function AdminDashboard() {
       const res = await fetch(`/api/admin/items/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Item deleted");
-        fetchMenu();
+        fetchData();
       }
     } catch (error) {
       toast.error("Error deleting item");
@@ -121,6 +141,15 @@ export default function AdminDashboard() {
       </div>
 
       <div className="flex gap-4 mb-8">
+        <button
+          onClick={() => setActiveTab("orders")}
+          className={`flex-1 py-4 rounded-2xl flex items-center justify-center gap-2 transition-all ${
+            activeTab === "orders" ? "bg-stone-900 text-white shadow-lg" : "bg-white text-stone-400 border border-stone-200"
+          }`}
+        >
+          <ClipboardList size={20} />
+          <span className="font-bold uppercase tracking-widest text-xs">Orders</span>
+        </button>
         <button
           onClick={() => setActiveTab("categories")}
           className={`flex-1 py-4 rounded-2xl flex items-center justify-center gap-2 transition-all ${
@@ -142,7 +171,58 @@ export default function AdminDashboard() {
       </div>
 
       <AnimatePresence mode="wait">
-        {activeTab === "categories" ? (
+        {activeTab === "orders" ? (
+          <motion.div
+            key="orders"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-4"
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-serif text-xl">Recent Orders ({orders.length})</h2>
+              <button onClick={fetchData} className="text-xs font-bold uppercase tracking-widest text-stone-400 hover:text-stone-900">Refresh</button>
+            </div>
+
+            {orders.length === 0 ? (
+              <div className="bg-white p-12 rounded-3xl border border-stone-100 text-center">
+                <p className="text-stone-400 italic">No orders yet</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {orders.map(order => (
+                  <div key={order.id} className="bg-white p-6 rounded-3xl border border-stone-100 shadow-sm">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="bg-stone-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter">
+                            {order.location_id}
+                          </span>
+                          <span className="text-[10px] text-stone-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                            <Clock size={10} /> {new Date(order.created_at).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <h3 className="font-serif text-lg">Order #{order.id.toString().slice(-4)}</h3>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-serif">${order.total.toFixed(2)}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">{order.status}</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2 border-t border-stone-50 pt-4">
+                      {order.items.map((item, idx) => (
+                        <div key={idx} className="flex justify-between text-sm">
+                          <span className="text-stone-600">{item.quantity}x {item.name}</span>
+                          <span className="text-stone-400">${(item.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        ) : activeTab === "categories" ? (
           <motion.div
             key="cats"
             initial={{ opacity: 0, y: 10 }}

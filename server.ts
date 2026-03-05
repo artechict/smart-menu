@@ -48,15 +48,24 @@ async function startServer() {
 
   api.get("/menu", (req, res) => {
     const db = getDb();
+    res.setHeader('Content-Type', 'application/json');
     res.json({ categories: db.categories, items: db.items });
+  });
+
+  api.get("/orders", (req, res) => {
+    const db = getDb();
+    res.setHeader('Content-Type', 'application/json');
+    res.json(db.orders || []);
   });
 
   api.post("/orders", (req, res) => {
     const db = getDb();
     const newOrder = { ...req.body, id: Date.now(), status: 'pending', created_at: new Date().toISOString() };
+    if (!db.orders) db.orders = [];
     db.orders.push(newOrder);
     saveDb(db);
     io.emit("new_order", newOrder);
+    res.setHeader('Content-Type', 'application/json');
     res.status(201).json(newOrder);
   });
 
@@ -65,6 +74,7 @@ async function startServer() {
     const newCat = { ...req.body, id: Date.now() };
     db.categories.push(newCat);
     saveDb(db);
+    res.setHeader('Content-Type', 'application/json');
     res.status(201).json(newCat);
   });
 
