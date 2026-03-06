@@ -37,40 +37,31 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000); // Auto refresh every 10s
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchData = async () => {
     try {
-      console.log("Fetching admin data from isolated DB (ultimate)...");
       const [menuRes, ordersRes] = await Promise.all([
-        fetch(`/ultimate-api/menu?v=${Date.now()}`),
-        fetch(`/ultimate-api/orders?v=${Date.now()}`)
+        fetch("/api/menu"),
+        fetch("/api/orders")
       ]);
       
-      if (!menuRes.ok) throw new Error(`Menu API error: ${menuRes.status}`);
-      if (!ordersRes.ok) throw new Error(`Orders API error: ${ordersRes.status}`);
+      if (!menuRes.ok || !ordersRes.ok) throw new Error("Failed to fetch data");
 
       const menuData = await menuRes.json();
       const ordersData = await ordersRes.json();
-      
-      console.log("Data received from isolated DB (ultimate):", { menuData, ordersData });
 
-      if (menuData && menuData.categories) setCategories(menuData.categories);
-      if (menuData && menuData.items) setItems(menuData.items);
-      if (Array.isArray(ordersData)) {
-        setOrders([...ordersData].reverse());
-      } else {
-        setOrders([]);
-      }
+      setCategories(menuData.categories);
+      setItems(menuData.items);
+      setOrders(ordersData.reverse());
 
-      if (menuData?.categories?.length > 0 && newItem.category_id === 0) {
+      if (menuData.categories.length > 0 && newItem.category_id === 0) {
         setNewItem(prev => ({ ...prev, category_id: menuData.categories[0].id }));
       }
     } catch (error: any) {
-      console.error("Detailed fetch error:", error);
-      toast.error(`Error: ${error.message || "Failed to load data"}`);
+      console.error("Fetch error:", error);
     } finally {
       setLoading(false);
     }
@@ -79,7 +70,7 @@ export default function AdminDashboard() {
   const addCategory = async () => {
     if (!newCatName) return;
     try {
-      const res = await fetch("/ultimate-api/admin/categories", {
+      const res = await fetch("/api/admin/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newCatName, icon: newCatIcon })
@@ -98,7 +89,7 @@ export default function AdminDashboard() {
   const deleteCategory = async (id: number) => {
     if (!confirm("Are you sure? This will delete all items in this category.")) return;
     try {
-      const res = await fetch(`/ultimate-api/admin/categories/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/categories/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Category deleted");
         fetchData();
@@ -111,7 +102,7 @@ export default function AdminDashboard() {
   const addItem = async () => {
     if (!newItem.name || !newItem.price) return;
     try {
-      const res = await fetch("/ultimate-api/admin/items", {
+      const res = await fetch("/api/admin/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newItem)
@@ -129,7 +120,7 @@ export default function AdminDashboard() {
 
   const deleteItem = async (id: number) => {
     try {
-      const res = await fetch(`/ultimate-api/admin/items/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/items/${id}`, { method: "DELETE" });
       if (res.ok) {
         toast.success("Item deleted");
         fetchData();

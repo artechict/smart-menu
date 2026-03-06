@@ -4,13 +4,12 @@ import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import fs from "fs";
 import { JSONFilePreset } from 'lowdb/node';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = path.join(__dirname, "db.json");
 
-// --- 1. THE ULTIMATE DATABASE ENGINE ---
+// --- 1. DATABASE SETUP ---
 const defaultData = {
   categories: [
     { id: 1, name: "Appetizers", icon: "Soup" },
@@ -27,43 +26,26 @@ const defaultData = {
 };
 
 async function startServer() {
-  // Initialize Database
   const db = await JSONFilePreset(DB_PATH, defaultData);
-
   const app = express();
   const httpServer = createServer(app);
   const io = new Server(httpServer);
   
   app.use(express.json());
 
-  // --- 2. API PROTECTION & LOGGING ---
-  app.use((req, res, next) => {
-    res.setHeader('X-Server-Version', 'ULTIMATE-V3');
-    if (req.url.includes('api')) {
-      console.log(`[API REQUEST] ${req.method} ${req.url}`);
-    }
-    next();
-  });
-
-  app.use(["/ultimate-api", "/api", "/api-v1"], (req, res, next) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    next();
-  });
-
-  // --- 3. THE ROUTES (MOVED TO TOP) ---
-  const handleMenu = (req: any, res: any) => {
-    console.log("Serving Menu...");
+  // --- 2. API ROUTES (MUST BE BEFORE VITE MIDDLEWARE) ---
+  
+  // Menu
+  app.get("/api/menu", (req, res) => {
     res.json({ categories: db.data.categories, items: db.data.items });
-  };
+  });
 
-  const handleOrders = (req: any, res: any) => {
-    console.log("Serving Orders...");
+  // Orders
+  app.get("/api/orders", (req, res) => {
     res.json(db.data.orders || []);
-  };
+  });
 
-  const handleCreateOrder = async (req: any, res: any) => {
-    console.log("Creating Order:", req.body);
+  app.post("/api/orders", async (req, res) => {
     const newOrder = { 
       ...req.body, 
       id: Date.now(), 
@@ -75,24 +57,17 @@ async function startServer() {
     await db.write();
     io.emit("new_order", newOrder);
     res.status(201).json(newOrder);
-  };
-
-  app.get("/ultimate-api/menu", handleMenu);
-  app.get("/ultimate-api/orders", handleOrders);
-  app.post("/ultimate-api/orders", handleCreateOrder);
-  app.get(["/api/menu", "/api/v1/menu", "/api-v1/menu"], handleMenu);
-  app.get(["/api/orders", "/api/v1/orders", "/api-v1/orders"], handleOrders);
-  app.post(["/api/orders", "/api/v1/orders", "/api-v1/orders"], handleCreateOrder);
+  });
 
   // Admin Actions
-  app.post(["/ultimate-api/admin/categories", "/api/v1/admin/categories"], async (req, res) => {
+  app.post("/api/admin/categories", async (req, res) => {
     const newCat = { ...req.body, id: Date.now() };
     db.data.categories.push(newCat);
     await db.write();
     res.status(201).json(newCat);
   });
 
-  app.delete(["/ultimate-api/admin/categories/:id", "/api/v1/admin/categories/:id"], async (req, res) => {
+  app.delete("/api/admin/categories/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.categories = db.data.categories.filter((c: any) => c.id !== id);
     db.data.items = db.data.items.filter((i: any) => i.category_id !== id);
@@ -100,27 +75,21 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  app.post(["/ultimate-api/admin/items", "/api/v1/admin/items"], async (req, res) => {
+  app.post("/api/admin/items", async (req, res) => {
     const newItem = { ...req.body, id: Date.now() };
     db.data.items.push(newItem);
     await db.write();
     res.status(201).json(newItem);
   });
 
-  app.delete(["/ultimate-api/admin/items/:id", "/api/v1/admin/items/:id"], async (req, res) => {
+  app.delete("/api/admin/items/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.items = db.data.items.filter((i: any) => i.id !== id);
     await db.write();
     res.json({ success: true });
   });
 
-  // API Catch-all
-  app.use(["/api", "/ultimate-api", "/api-v1"], (req, res) => {
-    console.log(`[API 404] ${req.method} ${req.url}`);
-    res.status(404).json({ error: "API Route Not Found", path: req.url });
-  });
-
-  // --- 4. VITE MIDDLEWARE ---
+  // --- 3. VITE MIDDLEWARE ---
   const vite = await createViteServer({
     server: { middlewareMode: true },
     appType: "spa",
@@ -129,13 +98,7 @@ async function startServer() {
 
   const PORT = 3000;
   httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`
-================================================
-  ✅ ULTIMATE SERVER IS LIVE
-  🚀 PORT: ${PORT}
-  🔗 API: /ultimate-api/
-================================================
-    `);
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 
