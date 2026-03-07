@@ -50,26 +50,44 @@ async function startServer() {
   
   // Menu
   app.get("/api/menu", (req, res) => {
-    res.json({ categories: db.data.categories, items: db.data.items });
+    try {
+      if (!db.data) {
+        return res.status(500).json({ error: "Database not initialized" });
+      }
+      res.json({ 
+        categories: db.data.categories || [], 
+        items: db.data.items || [] 
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to load menu" });
+    }
   });
 
   // Orders
   app.get("/api/orders", (req, res) => {
-    res.json(db.data.orders || []);
+    try {
+      res.json(db.data.orders || []);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to load orders" });
+    }
   });
 
   app.post("/api/orders", async (req, res) => {
-    const newOrder = { 
-      ...req.body, 
-      id: Date.now(), 
-      status: 'pending', 
-      created_at: new Date().toISOString() 
-    };
-    if (!db.data.orders) db.data.orders = [];
-    db.data.orders.push(newOrder);
-    await db.write();
-    io.emit("new_order", newOrder);
-    res.status(201).json(newOrder);
+    try {
+      const newOrder = { 
+        ...req.body, 
+        id: Date.now(), 
+        status: 'pending', 
+        created_at: new Date().toISOString() 
+      };
+      if (!db.data.orders) db.data.orders = [];
+      db.data.orders.push(newOrder);
+      await db.write();
+      io.emit("new_order", newOrder);
+      res.status(201).json(newOrder);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to save order" });
+    }
   });
 
   // Admin Actions
