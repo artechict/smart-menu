@@ -3,7 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart, Utensils, Coffee, IceCream, Soup, ChevronRight, X, Plus, Minus, Settings } from "lucide-react";
 import { Category, MenuItem, OrderItem } from "../types";
-import { io } from "socket.io-client";
+import { storage } from "../lib/storage";
 import toast from "react-hot-toast";
 
 const ICON_MAP: Record<string, any> = {
@@ -40,11 +40,9 @@ export default function CustomerMenu() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadMenu = async () => {
+    const loadMenu = () => {
       try {
-        const res = await fetch("/api/menu");
-        if (!res.ok) throw new Error("Failed to fetch menu");
-        const data = await res.json();
+        const data = storage.getMenu();
         setCategories(data.categories);
         setItems(data.items);
         if (data.categories.length > 0) setActiveCategory(data.categories[0].id);
@@ -56,15 +54,14 @@ export default function CustomerMenu() {
     };
     loadMenu();
 
-    const socket = io();
-    socket.on("order_updated", (order) => {
-      // If we had a way to track the user's order ID, we could show a specific toast
-      toast(`Order status updated: ${order.status}`, { icon: '🔔' });
-    });
-
-    return () => {
-      socket.disconnect();
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'categories' || e.key === 'items') {
+        loadMenu();
+      }
     };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const filteredItems = useMemo(() => {
@@ -96,17 +93,11 @@ export default function CustomerMenu() {
     if (cart.length === 0) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location_id: locationId,
-          items: cart,
-          total: cartTotal,
-        }),
+      storage.saveOrder({
+        location_id: locationId,
+        items: cart,
+        total: cartTotal,
       });
-      
-      if (!res.ok) throw new Error("Order failed");
       
       toast.success("Order submitted successfully!");
       setCart([]);

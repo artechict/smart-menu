@@ -3,17 +3,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { Plus, Trash2, LayoutGrid, UtensilsCrossed, ArrowLeft, Save, X, ClipboardList, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Category, MenuItem, OrderItem } from "../types";
-import { io } from "socket.io-client";
+import { storage, Order } from "../lib/storage";
 import toast from "react-hot-toast";
-
-interface Order {
-  id: number;
-  location_id: string;
-  items: OrderItem[];
-  total: number;
-  status: string;
-  created_at: string;
-}
 
 export default function AdminDashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -38,39 +29,28 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
-    const socket = io();
     
-    socket.on("new_order", (order) => {
-      console.log("New order received via socket:", order);
-      toast.success("New order received!");
-      fetchData();
-    });
-
-    socket.on("order_updated", (order) => {
-      console.log("Order updated via socket:", order);
-      fetchData();
-    });
-
-    return () => {
-      socket.disconnect();
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'orders' || e.key === 'categories' || e.key === 'items') {
+        fetchData();
+        if (e.key === 'orders') {
+          toast.success("Orders updated!");
+        }
+      }
     };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = () => {
     try {
-      const [menuRes, ordersRes] = await Promise.all([
-        fetch("/api/menu"),
-        fetch("/api/orders")
-      ]);
-      
-      if (!menuRes.ok || !ordersRes.ok) throw new Error("Failed to fetch data");
-
-      const menuData = await menuRes.json();
-      const ordersData = await ordersRes.json();
+      const menuData = storage.getMenu();
+      const ordersData = storage.getOrders();
 
       setCategories(menuData.categories);
       setItems(menuData.items);
-      setOrders(ordersData.reverse());
+      setOrders([...ordersData].reverse());
 
       if (menuData.categories.length > 0 && newItem.category_id === 0) {
         setNewItem(prev => ({ ...prev, category_id: menuData.categories[0].id }));
@@ -82,80 +62,65 @@ export default function AdminDashboard() {
     }
   };
 
-  const addCategory = async () => {
+  const addCategory = () => {
     if (!newCatName) return;
     try {
-      const res = await fetch("/api/admin/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newCatName, icon: newCatIcon })
-      });
-      if (res.ok) {
-        toast.success("Category added");
-        setNewCatName("");
-        setShowAddCategory(false);
-        fetchData();
-      }
+      const newCategories = [...categories, { id: Date.now(), name: newCatName, icon: newCatIcon }];
+      storage.saveCategories(newCategories);
+      toast.success("Category added");
+      setNewCatName("");
+      setShowAddCategory(false);
+      fetchData();
     } catch (error) {
       toast.error("Error adding category");
     }
   };
 
-  const deleteCategory = async (id: number) => {
+  const deleteCategory = (id: number) => {
     if (!confirm("Are you sure? This will delete all items in this category.")) return;
     try {
-      const res = await fetch(`/api/admin/categories/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success("Category deleted");
-        fetchData();
-      }
+      const newCategories = categories.filter(c => c.id !== id);
+      const newItems = items.filter(i => i.category_id !== id);
+      storage.saveCategories(newCategories);
+      storage.saveItems(newItems);
+      toast.success("Category deleted");
+      fetchData();
     } catch (error) {
       toast.error("Error deleting category");
     }
   };
 
-  const addItem = async () => {
+  const addItem = () => {
     if (!newItem.name || !newItem.price) return;
     try {
-      const res = await fetch("/api/admin/items", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newItem)
-      });
-      if (res.ok) {
-        toast.success("Item added");
-        setNewItem({ ...newItem, name: "", description: "", price: 0 });
-        setShowAddItem(false);
-        fetchData();
-      }
+      const newItems = [...items, { ...newItem, id: Date.now(), available: true }];
+      storage.saveItems(newItems);
+      toast.success("Item added");
+      setNewItem({ ...newItem, name: "", description: "", price: 0 });
+      setShowAddItem(false);
+      fetchData();
     } catch (error) {
       toast.error("Error adding item");
     }
   };
 
-  const deleteItem = async (id: number) => {
+  const deleteItem = (id: number) => {
+    if (!confirm("Delete this item?")) return;
     try {
-      const res = await fetch(`/api/admin/items/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        toast.success("Item deleted");
-        fetchData();
-      }
+      const newItems = items.filter(i => i.id !== id);
+      storage.saveItems(newItems);
+      toast.success("Item deleted");
+      fetchData();
     } catch (error) {
       toast.error("Error deleting item");
     }
   };
 
-  const updateOrderStatus = async (id: number, status: string) => {
+  const updateOrderStatus = (id: number, status: Order['status']) => {
     try {
-      const res = await fetch(`/api/admin/orders/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status })
-      });
-      if (res.ok) {
-        toast.success(`Order marked as ${status}`);
-        fetchData();
-      }
+      storage.updateOrderStatus(id, status);
+      toast.success(`Order marked as ${status}`);
+      fetchData();
     } catch (error) {
       toast.error("Error updating order");
     }
