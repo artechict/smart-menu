@@ -33,7 +33,20 @@ async function startServer() {
   
   app.use(express.json());
 
-  // --- 2. API ROUTES (MUST BE BEFORE VITE MIDDLEWARE) ---
+  // --- LOGGING MIDDLEWARE ---
+  app.use((req, res, next) => {
+    if (req.url.startsWith('/api')) {
+      console.log(`[API REQUEST] ${req.method} ${req.url}`);
+    }
+    next();
+  });
+
+  // Health check
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", time: new Date().toISOString() });
+  });
+
+  // --- 2. API ROUTES ---
   
   // Menu
   app.get("/api/menu", (req, res) => {
@@ -89,6 +102,26 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  app.patch("/api/admin/orders/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const { status } = req.body;
+    const order = db.data.orders.find((o: any) => o.id === id);
+    if (order) {
+      order.status = status;
+      await db.write();
+      io.emit("order_updated", order);
+      res.json(order);
+    } else {
+      res.status(404).json({ error: "Order not found" });
+    }
+  });
+
+  // API Catch-all (to prevent falling through to Vite for non-existent API routes)
+  app.use("/api", (req, res) => {
+    console.log(`[API 404] ${req.method} ${req.url}`);
+    res.status(404).json({ error: "API Route Not Found", path: req.url });
+  });
+
   // --- 3. VITE MIDDLEWARE ---
   const vite = await createViteServer({
     server: { middlewareMode: true },
@@ -98,7 +131,13 @@ async function startServer() {
 
   const PORT = 3000;
   httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`
+================================================
+  ✅ SERVER IS RUNNING (LOWDB VERSION)
+  🚀 PORT: ${PORT}
+  🔗 HEALTH: /api/health
+================================================
+    `);
   });
 }
 

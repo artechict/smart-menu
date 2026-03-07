@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Plus, Trash2, LayoutGrid, UtensilsCrossed, ArrowLeft, Save, X, ClipboardList, Clock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Category, MenuItem, OrderItem } from "../types";
+import { io } from "socket.io-client";
 import toast from "react-hot-toast";
 
 interface Order {
@@ -37,8 +38,22 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
+    const socket = io();
+    
+    socket.on("new_order", (order) => {
+      console.log("New order received via socket:", order);
+      toast.success("New order received!");
+      fetchData();
+    });
+
+    socket.on("order_updated", (order) => {
+      console.log("Order updated via socket:", order);
+      fetchData();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const fetchData = async () => {
@@ -130,6 +145,22 @@ export default function AdminDashboard() {
     }
   };
 
+  const updateOrderStatus = async (id: number, status: string) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        toast.success(`Order marked as ${status}`);
+        fetchData();
+      }
+    } catch (error) {
+      toast.error("Error updating order");
+    }
+  };
+
   if (loading) return <div className="p-8 text-center font-serif italic">Loading dashboard...</div>;
 
   return (
@@ -208,7 +239,35 @@ export default function AdminDashboard() {
                       </div>
                       <div className="text-right">
                         <div className="text-xl font-serif">${order.total.toFixed(2)}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">{order.status}</div>
+                        <div className="flex flex-col items-end gap-2 mt-2">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">{order.status}</div>
+                          <div className="flex gap-1">
+                            {order.status === 'pending' && (
+                              <button
+                                onClick={() => updateOrderStatus(order.id, 'preparing')}
+                                className="px-2 py-0.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-full text-[8px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-colors"
+                              >
+                                Prepare
+                              </button>
+                            )}
+                            {order.status === 'preparing' && (
+                              <button
+                                onClick={() => updateOrderStatus(order.id, 'delivered')}
+                                className="px-2 py-0.5 bg-green-50 text-green-600 border border-green-100 rounded-full text-[8px] font-bold uppercase tracking-wider hover:bg-green-100 transition-colors"
+                              >
+                                Deliver
+                              </button>
+                            )}
+                            {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                              <button
+                                onClick={() => updateOrderStatus(order.id, 'cancelled')}
+                                className="px-2 py-0.5 bg-red-50 text-red-400 border border-red-100 rounded-full text-[8px] font-bold uppercase tracking-wider hover:bg-red-100 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="space-y-2 border-t border-stone-50 pt-4">

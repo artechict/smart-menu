@@ -3,6 +3,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { ShoppingCart, Utensils, Coffee, IceCream, Soup, ChevronRight, X, Plus, Minus, Settings } from "lucide-react";
 import { Category, MenuItem, OrderItem } from "../types";
+import { io } from "socket.io-client";
 import toast from "react-hot-toast";
 
 const ICON_MAP: Record<string, any> = {
@@ -54,6 +55,16 @@ export default function CustomerMenu() {
       }
     };
     loadMenu();
+
+    const socket = io();
+    socket.on("order_updated", (order) => {
+      // If we had a way to track the user's order ID, we could show a specific toast
+      toast(`Order status updated: ${order.status}`, { icon: '🔔' });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const filteredItems = useMemo(() => {
