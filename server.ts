@@ -47,9 +47,16 @@ async function startServer() {
   });
 
   // --- 2. API ROUTES ---
-  
+  const apiRouter = express.Router();
+
+  // Force JSON for all API responses
+  apiRouter.use((req, res, next) => {
+    res.setHeader('Content-Type', 'application/json');
+    next();
+  });
+
   // Menu
-  app.get("/api/menu", (req, res) => {
+  apiRouter.get("/menu", (req, res) => {
     try {
       if (!db.data) {
         return res.status(500).json({ error: "Database not initialized" });
@@ -59,12 +66,13 @@ async function startServer() {
         items: db.data.items || [] 
       });
     } catch (err) {
+      console.error("Error in /api/menu:", err);
       res.status(500).json({ error: "Failed to load menu" });
     }
   });
 
   // Orders
-  app.get("/api/orders", (req, res) => {
+  apiRouter.get("/orders", (req, res) => {
     try {
       res.json(db.data.orders || []);
     } catch (err) {
@@ -72,7 +80,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/orders", async (req, res) => {
+  apiRouter.post("/orders", async (req, res) => {
     try {
       const newOrder = { 
         ...req.body, 
@@ -91,14 +99,14 @@ async function startServer() {
   });
 
   // Admin Actions
-  app.post("/api/admin/categories", async (req, res) => {
+  apiRouter.post("/admin/categories", async (req, res) => {
     const newCat = { ...req.body, id: Date.now() };
     db.data.categories.push(newCat);
     await db.write();
     res.status(201).json(newCat);
   });
 
-  app.delete("/api/admin/categories/:id", async (req, res) => {
+  apiRouter.delete("/admin/categories/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.categories = db.data.categories.filter((c: any) => c.id !== id);
     db.data.items = db.data.items.filter((i: any) => i.category_id !== id);
@@ -106,21 +114,21 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  app.post("/api/admin/items", async (req, res) => {
+  apiRouter.post("/admin/items", async (req, res) => {
     const newItem = { ...req.body, id: Date.now() };
     db.data.items.push(newItem);
     await db.write();
     res.status(201).json(newItem);
   });
 
-  app.delete("/api/admin/items/:id", async (req, res) => {
+  apiRouter.delete("/admin/items/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     db.data.items = db.data.items.filter((i: any) => i.id !== id);
     await db.write();
     res.json({ success: true });
   });
 
-  app.patch("/api/admin/orders/:id", async (req, res) => {
+  apiRouter.patch("/admin/orders/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     const { status } = req.body;
     const order = db.data.orders.find((o: any) => o.id === id);
@@ -134,11 +142,14 @@ async function startServer() {
     }
   });
 
-  // API Catch-all (to prevent falling through to Vite for non-existent API routes)
-  app.use("/api", (req, res) => {
-    console.log(`[API 404] ${req.method} ${req.url}`);
-    res.status(404).json({ error: "API Route Not Found", path: req.url });
+  // Final API Guard (Catch-all for /api)
+  apiRouter.use((req, res) => {
+    console.log(`[API 404] ${req.method} ${req.originalUrl}`);
+    res.status(404).json({ error: "API Route Not Found", path: req.originalUrl });
   });
+
+  // Mount the router
+  app.use("/api", apiRouter);
 
   // --- 3. VITE MIDDLEWARE ---
   const vite = await createViteServer({
