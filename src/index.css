@@ -1,0 +1,97 @@
+:root {
+  --font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --bg-color: #0d0f13;
+  --card-bg: rgba(255, 255, 255, 0.03);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --text-primary: #f8f9fa;
+  --text-secondary: #a0aab2;
+  --accent-gold: #d4af37;
+  --accent-glow: rgba(212, 175, 55, 0.15);
+  --input-bg: rgba(0, 0, 0, 0.2);
+  
+  --shadow-glow: 0 0 30px var(--accent-glow);
+  --glass-blur: blur(12px);
+  --transition-speed: 0.3s;
+}
+
+[data-theme="light"] {
+  --bg-color: #f8f9fa;
+  --card-bg: rgba(255, 255, 255, 0.8);
+  --card-border: rgba(0, 0, 0, 0.08);
+  --text-primary: #1a1a1a;
+  --text-secondary: #5a6672;
+  --accent-gold: #b38b1f;
+  --accent-glow: rgba(179, 139, 31, 0.15);
+  --input-bg: rgba(255, 255, 255, 0.8);
+  --shadow-glow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: var(--font-family);
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+  width: 100%;
+}
+
+h1, h2, h3 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+a {
+  font-weight: 500;
+  color: var(--accent-gold);
+  text-decoration: inherit;
+  transition: color var(--transition-speed);
+}
+a:hover {
+  color: #f3c745;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid var(--accent-gold);
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: transparent;
+  color: var(--accent-gold);
+  cursor: pointer;
+  transition: all var(--transition-speed);
+}
+button:hover {
+  background-color: var(--accent-gold);
+  color: var(--bg-color);
+  box-shadow: var(--shadow-glow);
+}
+
+.glass-card {
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 2rem;
+  transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+}
+.glass-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), var(--shadow-glow);
+  border-color: rgba(255, 255, 255, 0.15);
+}
