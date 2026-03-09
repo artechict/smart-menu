@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { handle } from 'hono/cloudflare-pages'
 
 const app = new Hono().basePath('/api')
 
@@ -101,7 +102,6 @@ app.post('/orders', async (c) => {
       stmts.push(insertItemStmt.bind(id, item.id, item.quantity));
     });
     
-    // Execute all statements as a batch
     await db.batch(stmts);
     
     return c.json({ success: true, orderId: id });
@@ -125,4 +125,4 @@ app.put('/orders/:id/status', async (c) => {
   }
 });
 
-export default app;
+export const onRequest = handle(app);

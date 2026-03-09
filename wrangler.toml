@@ -1,0 +1,7 @@
+name = "menu"
+pages_build_output_dir = "./dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hotel-db"
+database_id = "" # این بخش را بعد از ساخت دیتابیس باید پر کنید
