@@ -17,7 +17,7 @@ export const OrderProvider = ({ children }) => {
       const res = await fetch('/api/orders');
       if (res.ok) {
         const data = await res.json();
-        setOrders(data);
+        setOrders(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error("Error fetching orders:", err);

@@ -9,9 +9,9 @@ export default function OrderList() {
   const { t, i18n } = useTranslation();
 
   // Filter orders where AT LEAST ONE item is from this department
-  const departmentOrders = orders.filter(order => 
-    order.items.some(item => item.department === department)
-  );
+  const departmentOrders = Array.isArray(orders) ? orders.filter(order => 
+    order.items && Array.isArray(order.items) && order.items.some(item => item.department === department)
+  ) : [];
 
   const StatusBadge = ({ status }) => {
     const badges = {

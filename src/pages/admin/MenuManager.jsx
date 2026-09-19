@@ -12,6 +12,13 @@ export default function MenuManager() {
   const [isEditing, setIsEditing] = useState(false);
   const [currentForm, setCurrentForm] = useState(initialFormState());
 
+  const menuGallery = [
+    { name: 'Wagyu', url: '/assets/menu/wagyu.png' },
+    { name: 'Lobster', url: '/assets/menu/lobster.png' },
+    { name: 'Espresso', url: '/assets/menu/espresso.png' },
+    { name: 'Suit', url: '/assets/menu/suit.png' }
+  ];
+
   function initialFormState() {
     return {
       id: '',
@@ -19,9 +26,58 @@ export default function MenuManager() {
       name_en: '', name_ar: '', name_tr: '', name_ku: '',
       desc_en: '', desc_ar: '', desc_tr: '', desc_ku: '',
       price: '',
-      image: '🍽️'
+      image: menuGallery[0].url
     };
   }
+
+  const handleTranslate = async () => {
+    if (!currentForm.name_en && !currentForm.desc_en) {
+      alert('Please enter English name or description first.');
+      return;
+    }
+
+    try {
+      const targets = ['ar', 'tr', 'ku'];
+      
+      // Translate Name
+      if (currentForm.name_en) {
+        const res = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: currentForm.name_en, targetLangs: targets })
+        });
+        const data = await res.json();
+        if (data.translations) {
+          setCurrentForm(prev => ({
+            ...prev,
+            name_ar: data.translations.ar,
+            name_tr: data.translations.tr,
+            name_ku: data.translations.ku
+          }));
+        }
+      }
+
+      // Translate Description
+      if (currentForm.desc_en) {
+        const res = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: currentForm.desc_en, targetLangs: targets })
+        });
+        const data = await res.json();
+        if (data.translations) {
+          setCurrentForm(prev => ({
+            ...prev,
+            desc_ar: data.translations.ar,
+            desc_tr: data.translations.tr,
+            desc_ku: data.translations.ku
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Translation failed:', err);
+    }
+  };
 
   const fetchItems = async () => {
     setLoading(true);
@@ -29,7 +85,7 @@ export default function MenuManager() {
       const res = await fetch('/api/menu');
       if (res.ok) {
         const data = await res.json();
-        setItems(data);
+        setItems(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error(err);
@@ -75,6 +131,14 @@ export default function MenuManager() {
       payload.id = `item_${Date.now()}`;
     }
 
+    // Ensure valid numerical price
+    const priceNum = parseFloat(payload.price);
+    if (isNaN(priceNum)) {
+      alert('Invalid price format');
+      return;
+    }
+    payload.price = priceNum;
+
     try {
       const res = await fetch(url, {
         method,
@@ -82,12 +146,17 @@ export default function MenuManager() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        alert('Item ' + (isNew ? 'Added' : 'Saved') + ' successfully!');
         setCurrentForm(initialFormState());
         setIsEditing(false);
         fetchItems();
+      } else {
+        const errData = await res.json();
+        alert('Error: ' + errData.error);
       }
     } catch (err) {
       console.error(err);
+      alert('Submission failed. Check console.');
     }
   };
 
@@ -112,21 +181,49 @@ export default function MenuManager() {
               </select>
             </div>
             
-            <div className="form-row" style={{ display: 'flex', gap: '1rem' }}>
-              <div className="form-group">
+            <div className="form-row" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ flex: 1 }}>
                 <label>Price (USD)</label>
                 <input type="number" step="0.01" name="price" value={currentForm.price} onChange={handleInputChange} required />
               </div>
-              <div className="form-group">
-                <label>Emoji/Icon</label>
-                <input type="text" name="image" value={currentForm.image} onChange={handleInputChange} required />
+              <div className="form-group" style={{ flex: 2 }}>
+                <label>Product Image</label>
+                <div className="gallery-selector" style={{ display: 'flex', gap: '5px', overflowX: 'auto', padding: '5px', border: '1px solid var(--card-border)', borderRadius: '8px', background: 'var(--input-bg)' }}>
+                  {menuGallery.map(img => (
+                    <img 
+                      key={img.url} 
+                      src={img.url} 
+                      alt={img.name}
+                      onClick={() => setCurrentForm(prev => ({ ...prev, image: img.url }))}
+                      style={{ 
+                        width: '35px', height: '35px', borderRadius: '4px', cursor: 'pointer',
+                        border: currentForm.image === img.url ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                        opacity: currentForm.image === img.url ? 1 : 0.6
+                      }}
+                      title={img.name}
+                    />
+                  ))}
+                </div>
+                <input 
+                  type="text" 
+                  name="image" 
+                  value={currentForm.image} 
+                  onChange={handleInputChange} 
+                  placeholder="Or enter custom URL..."
+                  style={{ marginTop: '5px', fontSize: '0.8rem' }}
+                />
               </div>
             </div>
 
-            <fieldset style={{ border: '1px solid var(--card-border)', padding: '10px', borderRadius: '8px', marginBottom: '15px' }}>
-              <legend style={{ padding: '0 5px' }}>English (EN)</legend>
-              <input type="text" name="name_en" placeholder="Name" value={currentForm.name_en} onChange={handleInputChange} required className="full-width-input" />
-              <textarea name="desc_en" placeholder="Description" value={currentForm.desc_en} onChange={handleInputChange} className="full-width-input" />
+            <fieldset style={{ border: '1px solid var(--card-border)', padding: '15px', borderRadius: '12px', marginBottom: '20px', background: 'rgba(255,255,255,0.02)' }}>
+              <legend style={{ padding: '0 10px', fontWeight: 'bold', color: 'var(--accent-primary)' }}>English (EN) - Primary</legend>
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <input type="text" name="name_en" placeholder="Item Name (English)" value={currentForm.name_en} onChange={handleInputChange} required style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid var(--card-border)', background: 'var(--input-bg)', color: 'white' }} />
+                <button type="button" onClick={handleTranslate} style={{ padding: '0 15px', background: 'var(--accent-glow)', color: 'var(--accent-primary)', border: '1px solid var(--accent-primary)', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                  AUTO TRANSLATE
+                </button>
+              </div>
+              <textarea name="desc_en" placeholder="Description (English)" value={currentForm.desc_en} onChange={handleInputChange} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--card-border)', background: 'var(--input-bg)', color: 'white', minHeight: '80px' }} />
             </fieldset>
 
             <fieldset style={{ border: '1px solid var(--card-border)', padding: '10px', borderRadius: '8px', marginBottom: '15px' }}>
@@ -166,7 +263,7 @@ export default function MenuManager() {
               {items.map(item => (
                 <div key={item.id} className="admin-list-item glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '10px 0', padding: '15px' }}>
                   <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-                    <div style={{ fontSize: '2rem' }}>{item.image}</div>
+                    <img src={item.image} alt="" style={{ width: '50px', height: '50px', borderRadius: '8px', objectFit: 'cover' }} />
                     <div>
                       <h4 style={{ margin: '0 0 5px 0' }}>{item.name_en}</h4>
                       <small style={{ color: 'var(--text-secondary)' }}>{item.department.toUpperCase()} • {formatPrice(item.price)}</small>

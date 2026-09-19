@@ -1,10 +1,19 @@
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Utensils, Coffee, Shirt } from 'lucide-react';
+const restaurantBg = '/assets/menu/wagyu.png';
+const cafeBg = '/assets/menu/espresso.png';
+const laundryBg = '/assets/menu/suit.png';
 
 export default function Home() {
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  const categories = [
+    { id: 'restaurant', title: t('restaurant'), desc: t('restaurantDesc'), icon: <Utensils />, bg: restaurantBg },
+    { id: 'cafe', title: t('cafe'), desc: t('cafeDesc'), icon: <Coffee />, bg: cafeBg },
+    { id: 'laundry', title: t('laundry'), desc: t('laundryDesc'), icon: <Shirt />, bg: laundryBg },
+  ];
 
   return (
     <div className="guest-home">
@@ -14,32 +23,20 @@ export default function Home() {
       </div>
 
       <div className="categories-grid">
-        <div className="glass-card category-card" onClick={() => navigate('/menu/restaurant')}>
-          <div className="icon-wrapper">
-            <Utensils size={40} />
+        {categories.map((cat) => (
+          <div 
+            key={cat.id}
+            className="glass category-card" 
+            onClick={() => navigate(`/menu/${cat.id}`)}
+            style={{ backgroundImage: `url(${cat.bg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+          >
+            <div className="icon-wrapper">
+              {cat.icon}
+            </div>
+            <h3>{cat.title}</h3>
+            <p>{cat.desc}</p>
           </div>
-          <h3>{t('restaurant')}</h3>
-          <p>{t('restaurantDesc')}</p>
-          <button>{t('viewMenu')}</button>
-        </div>
-        
-        <div className="glass-card category-card" onClick={() => navigate('/menu/cafe')}>
-          <div className="icon-wrapper">
-            <Coffee size={40} />
-          </div>
-          <h3>{t('cafe')}</h3>
-          <p>{t('cafeDesc')}</p>
-          <button>{t('viewCafe')}</button>
-        </div>
-
-        <div className="glass-card category-card" onClick={() => navigate('/menu/laundry')}>
-          <div className="icon-wrapper">
-            <Shirt size={40} />
-          </div>
-          <h3>{t('laundry')}</h3>
-          <p>{t('laundryDesc')}</p>
-          <button>{t('requestService')}</button>
-        </div>
+        ))}
       </div>
     </div>
   );

@@ -8,11 +8,40 @@ app.use('*', cors())
 
 // --- MENU API ---
 
-// Get all menu items
-app.get('/menu', async (c) => {
+app.get('/init', async (c) => {
   const db = c.env.DB;
-  const { results } = await db.prepare("SELECT * FROM menu_items").all();
-  return c.json(results);
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS menu_items (
+        id TEXT PRIMARY KEY,
+        department TEXT,
+        name_en TEXT, name_ar TEXT, name_tr TEXT, name_ku TEXT,
+        desc_en TEXT, desc_ar TEXT, desc_tr TEXT, desc_ku TEXT,
+        price REAL,
+        image TEXT
+      )
+    `).run();
+    
+    // Seed one item to verify
+    await db.prepare(`
+      INSERT OR IGNORE INTO menu_items (id, department, name_en, desc_en, price, image) 
+      VALUES ('r1', 'restaurant', 'Wagyu Beef Filet', 'Gourmet Wagyu beef seared to perfection.', 85, '/assets/menu/wagyu.png')
+    `).run();
+    
+    return c.json({ success: true, message: "Local DB initialized" });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.get('/menu', async (c) => {
+  try {
+    const db = c.env.DB;
+    const { results } = await db.prepare("SELECT * FROM menu_items").all();
+    return c.json(results);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
 });
 
 // Add new menu item
@@ -121,6 +150,54 @@ app.put('/orders/:id/status', async (c) => {
     const result = await db.prepare("UPDATE orders SET status = ? WHERE id = ?").bind(status, id).run();
     return c.json({ success: true, updated: result.meta.changes });
   } catch(err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// --- TRANSLATION API ---
+
+app.post('/translate', async (c) => {
+  try {
+    const { text, targetLangs } = await c.req.json();
+    if (!text) return c.json({ error: "No text provided" }, 400);
+
+    const ai = c.env.AI;
+    if (!ai) {
+      // Fallback for local development if AI binding is missing
+      const results = {};
+      targetLangs.forEach(lang => {
+        results[lang] = `(Local) ${text}`;
+      });
+      return c.json({ translations: results });
+    }
+
+    const results = {};
+    for (const lang of targetLangs) {
+      try {
+        // Map our internal codes to Cloudflare AI compatible names
+        const langMap = {
+          'ar': 'arabic',
+          'tr': 'turkish',
+          'ku': 'kurdish' 
+        };
+        
+        const target = langMap[lang] || lang;
+        
+        const response = await ai.run('@cf/meta/m2m100-1.2b', {
+          text: text,
+          source_lang: 'english',
+          target_lang: target
+        });
+        
+        results[lang] = response.translated_text;
+      } catch (err) {
+        console.error(`Translation error for ${lang}:`, err);
+        results[lang] = `${text} (${lang.toUpperCase()})`;
+      }
+    }
+
+    return c.json({ translations: results });
+  } catch (err) {
     return c.json({ error: err.message }, 500);
   }
 });
